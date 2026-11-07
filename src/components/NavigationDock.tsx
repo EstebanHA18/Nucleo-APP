@@ -59,7 +59,7 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           <span className="hidden sm:inline">Dashboard</span>
         </button>
 
-        {/* 3. POS (if active) */}
+        {/* 3. POS */}
         {isModuleActive("pos") && (
           <button
             type="button"
@@ -75,7 +75,7 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           </button>
         )}
 
-        {/* 4. Inventory (if active) */}
+        {/* 4. Inventory */}
         {isModuleActive("inventory") && (
           <button
             type="button"
@@ -91,19 +91,19 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           </button>
         )}
 
-        {/* 5. Receivables / Fiados (if active) */}
-        {isModuleActive("receivables") && (
+        {/* 5. Customers Directory (Sin fiados) */}
+        {isModuleActive("customers") && (
           <button
             type="button"
-            onClick={() => setActiveView("receivables")}
+            onClick={() => setActiveView("customers")}
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
-              activeView === "receivables"
+              activeView === "customers"
                 ? "bg-apple-blue text-white shadow-md shadow-apple-blue/30"
                 : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Fiados & Clientes</span>
+            <span className="hidden sm:inline">Clientes</span>
           </button>
         )}
 
@@ -114,7 +114,7 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           type="button"
           onClick={onOpenSettingsWizard}
           className="p-1.5 rounded-full text-neutral-500 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-          title="Abrir Asistente de Configuración (Wizard)"
+          title="Reconfigurar Negocio (Wizard)"
         >
           <Sliders className="w-3.5 h-3.5" />
         </button>

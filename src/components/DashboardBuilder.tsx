@@ -12,8 +12,6 @@ import {
   Eye, 
   EyeOff, 
   ArrowUpRight, 
-  DollarSign,
-  Calendar,
   Sparkles
 } from "lucide-react";
 import { TenantSettings, Product, Customer, Sale } from "@/types";
@@ -44,7 +42,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
     { id: "w-sales", title: "Ventas del Turno (Hoy)", visible: true, type: "sales" },
     { id: "w-profit", title: "Ganancia & Margen Neto", visible: true, type: "profit" },
     { id: "w-stock", title: "Alertas de Stock Bajo", visible: true, type: "stock" },
-    { id: "w-fiados", title: "Cuentas por Cobrar (Fiados)", visible: true, type: "fiados" },
+    { id: "w-customers", title: "Clientes & Compras B2B", visible: true, type: "customers" },
     { id: "w-fastpos", title: "Acceso Rápido a Caja POS", visible: true, type: "fastpos" },
     { id: "w-top", title: "Productos de Mayor Demanda", visible: true, type: "top" },
   ]);
@@ -53,9 +51,9 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
 
   // Calcs
   const lowStock = products.filter((p) => p.stock <= p.minStock);
-  const totalDebt = customers.reduce((acc, c) => acc + c.currentBalance, 0);
   const totalSalesToday = sales.reduce((acc, s) => acc + s.total, 4892.5);
   const totalProfitToday = sales.reduce((acc, s) => acc + s.profit, 1420.0);
+  const corporateCount = customers.filter((c) => c.taxId).length;
 
   const toggleVisibility = (id: string) => {
     setWidgets((prev) =>
@@ -148,12 +146,12 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
             <div className="py-4">
               {w.type === "sales" && (
                 <div>
-                  <span className="text-[10px] text-neutral-400 uppercase font-semibold">Ingreso Monetario</span>
+                  <span className="text-[10px] text-neutral-400 uppercase font-semibold">Ingreso Monetario Total</span>
                   <div className="text-3xl font-extrabold text-apple-blue font-mono mt-0.5">
                     C$ {(totalSalesToday * (tenant.currency === "NIO" ? 1 : tenant.exchangeRate)).toLocaleString("es-NI", { minimumFractionDigits: 2 })}
                   </div>
                   <span className="text-xs text-neutral-500 font-mono mt-1 block">
-                    ≈ ${(totalSalesToday / tenant.exchangeRate).toFixed(2)} USD • 48 tickets hoy
+                    ≈ ${(totalSalesToday / tenant.exchangeRate).toFixed(2)} USD • 48 facturas al contado
                   </span>
                 </div>
               )}
@@ -192,14 +190,14 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                 </div>
               )}
 
-              {w.type === "fiados" && (
+              {w.type === "customers" && (
                 <div>
-                  <span className="text-[10px] text-neutral-400 uppercase font-semibold">Cuentas por Cobrar Activas</span>
-                  <div className="text-3xl font-extrabold text-apple-red font-mono mt-0.5">
-                    C$ {totalDebt.toLocaleString("es-NI", { minimumFractionDigits: 2 })}
+                  <span className="text-[10px] text-neutral-400 uppercase font-semibold">Directorio de Clientes</span>
+                  <div className="text-3xl font-extrabold text-apple-blue font-mono mt-0.5">
+                    {customers.length} Clientes
                   </div>
                   <span className="text-xs text-neutral-500 mt-1 block">
-                    {customers.filter((c) => c.currentBalance > 0).length} clientes con saldo pendiente
+                    {corporateCount} empresas con RUC registradas
                   </span>
                 </div>
               )}
@@ -207,7 +205,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
               {w.type === "fastpos" && (
                 <div className="text-center py-2 space-y-2">
                   <p className="text-xs text-neutral-500">
-                    Caja Principal abierta con C$ 2,500.00 de fondo.
+                    Caja Principal abierta • Pagos en Efectivo / Tarjeta.
                   </p>
                   <button
                     type="button"
@@ -242,7 +240,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
               <span>Actualización en tiempo real</span>
               <button
                 type="button"
-                onClick={() => onNavigate(w.type === "stock" ? "inventory" : w.type === "fiados" ? "receivables" : "pos")}
+                onClick={() => onNavigate(w.type === "stock" ? "inventory" : w.type === "customers" ? "customers" : "pos")}
                 className="text-apple-blue hover:underline font-semibold flex items-center gap-0.5"
               >
                 <span>Detalle</span>

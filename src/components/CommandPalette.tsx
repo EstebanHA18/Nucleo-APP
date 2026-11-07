@@ -9,9 +9,7 @@ import {
   Network, 
   Terminal, 
   Sliders, 
-  ArrowRight,
-  Layers,
-  Sparkles
+  ArrowRight
 } from "lucide-react";
 import { Product } from "@/types";
 
@@ -51,7 +49,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const actions = [
     { id: "pos", name: "Abrir Terminal POS (Caja & Ventas)", icon: <Receipt className="w-4 h-4 text-apple-blue" />, category: "Navegación" },
     { id: "inventory", name: "Gestionar Inventario & Kardex", icon: <Package className="w-4 h-4 text-apple-purple" />, category: "Navegación" },
-    { id: "receivables", name: "Clientes & Fiados (Cuentas por Cobrar)", icon: <Users className="w-4 h-4 text-apple-green" />, category: "Navegación" },
+    { id: "customers", name: "Directorio de Clientes", icon: <Users className="w-4 h-4 text-apple-green" />, category: "Navegación" },
     { id: "spatial", name: "Ver Red Espacial (Topología de Nodos)", icon: <Network className="w-4 h-4 text-apple-teal" />, category: "Navegación" },
     { id: "terminal", name: "Abrir SuperAdmin Terminal (God Mode)", icon: <Terminal className="w-4 h-4 text-apple-orange" />, category: "Administración" },
     { id: "wizard", name: "Reconfigurar Negocio / Business Builder", icon: <Sliders className="w-4 h-4 text-apple-pink" />, category: "Configuración" },
@@ -82,7 +80,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar acción, módulo o producto (ej. Varilla, POS, Fiados)..."
+            placeholder="Buscar acción, módulo o producto (ej. Varilla, POS, Clientes)..."
             className="w-full bg-transparent text-sm focus:outline-none placeholder-neutral-400"
           />
           <kbd className="px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-[10px] font-mono text-neutral-500 border border-neutral-200 dark:border-neutral-700">
@@ -92,7 +90,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
         {/* Results */}
         <div className="p-2 max-h-80 overflow-y-auto space-y-1">
-          {/* Actions */}
           <div className="px-2.5 py-1 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
             Acciones & Módulos
           </div>

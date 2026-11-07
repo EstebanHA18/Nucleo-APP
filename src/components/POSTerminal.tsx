@@ -7,14 +7,12 @@ import {
   Barcode, 
   Plus, 
   Minus, 
-  Trash2, 
   Check, 
   Printer, 
   CreditCard, 
   Banknote, 
-  Clock, 
+  ArrowRightLeft, 
   UserPlus, 
-  AlertCircle,
   TrendingUp,
   X,
   FileCheck
@@ -39,7 +37,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
   const [selectedCategory, setSelectedCategory] = useState("Todos");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer>(customers[3] || customers[0]); // Default Contado
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "credit" | "card" | "transfer">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "transfer">("cash");
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [lastSale, setLastSale] = useState<Sale | null>(null);
 
@@ -127,20 +125,6 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
   const handleCheckout = () => {
     if (cart.length === 0) return;
 
-    // Validación de crédito / fiado
-    if (paymentMethod === "credit") {
-      if (!selectedCustomer.allowCredit) {
-        alert(`El cliente ${selectedCustomer.name} no tiene crédito autorizado.`);
-        return;
-      }
-      if (selectedCustomer.currentBalance + total > selectedCustomer.creditLimit) {
-        alert(
-          `¡Límite de crédito excedido!\nLímite: C$ ${selectedCustomer.creditLimit}\nSaldo actual: C$ ${selectedCustomer.currentBalance}\nEsta venta: C$ ${total}`
-        );
-        return;
-      }
-    }
-
     const saleRecord: Sale = {
       id: "sale-" + Date.now(),
       invoiceNumber: "FAC-" + Math.floor(100000 + Math.random() * 900000),
@@ -157,7 +141,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
       createdAt: new Date().toISOString(),
     };
 
-    // Registrar localmente (descuenta inventario y actualiza saldo de crédito si aplica)
+    // Registrar localmente (descuenta stock al instante)
     const { updatedProducts, updatedCustomers } = recordSaleLocally(saleRecord);
 
     setLastSale(saleRecord);
@@ -187,7 +171,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
             </div>
             <div className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-neutral-100 dark:bg-neutral-800 text-xs text-neutral-500 font-mono">
               <Barcode className="w-4 h-4 text-apple-blue" />
-              <span className="hidden sm:inline">Escáner Listo</span>
+              <span className="hidden sm:inline">Escáner Activo</span>
             </div>
           </div>
 
@@ -272,7 +256,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
             <div className="flex items-center gap-2">
               <Receipt className="w-4 h-4 text-apple-blue" />
               <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
-                Ticket de Venta
+                Facturación & Caja (Contado)
               </h3>
             </div>
             <span className="text-xs font-mono text-neutral-500">
@@ -283,7 +267,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
           {/* Customer Selection */}
           <div>
             <label className="block text-[11px] font-medium text-neutral-500 mb-1">
-              Cliente de la Factura
+              Cliente para Factura
             </label>
             <select
               value={selectedCustomer.id}
@@ -295,7 +279,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
             >
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name} {c.allowCredit ? `(Crédito: C$ ${c.creditLimit})` : "(Solo Contado)"}
+                  {c.name} {c.taxId ? `(${c.taxId})` : ""}
                 </option>
               ))}
             </select>
@@ -360,10 +344,10 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
             )}
           </div>
 
-          {/* Payment Method Selector */}
+          {/* Payment Method Selector (100% Contado / Tarjeta / Transferencia) */}
           <div>
             <label className="block text-[11px] font-medium text-neutral-500 mb-1.5">
-              Método de Pago
+              Forma de Pago
             </label>
             <div className="grid grid-cols-3 gap-1.5 p-1 bg-neutral-100 dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700 text-xs font-semibold">
               <button
@@ -380,18 +364,6 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setPaymentMethod("credit")}
-                className={`py-1.5 rounded-lg flex items-center justify-center gap-1 transition-all ${
-                  paymentMethod === "credit"
-                    ? "bg-white dark:bg-neutral-700 text-apple-blue shadow-sm"
-                    : "text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
-                }`}
-              >
-                <Clock className="w-3.5 h-3.5" />
-                <span>Fiado</span>
-              </button>
-              <button
-                type="button"
                 onClick={() => setPaymentMethod("card")}
                 className={`py-1.5 rounded-lg flex items-center justify-center gap-1 transition-all ${
                   paymentMethod === "card"
@@ -401,6 +373,18 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
               >
                 <CreditCard className="w-3.5 h-3.5" />
                 <span>Tarjeta</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod("transfer")}
+                className={`py-1.5 rounded-lg flex items-center justify-center gap-1 transition-all ${
+                  paymentMethod === "transfer"
+                    ? "bg-white dark:bg-neutral-700 text-apple-blue shadow-sm"
+                    : "text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+                }`}
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+                <span>Transf.</span>
               </button>
             </div>
           </div>
@@ -416,11 +400,11 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
               <span className="font-mono">C$ {tax.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-apple-green font-semibold">
-              <span>Margen / Ganancia estimada:</span>
+              <span>Ganancia / Margen Neto:</span>
               <span className="font-mono">+C$ {netProfit.toFixed(2)}</span>
             </div>
             <div className="flex justify-between items-baseline pt-2 border-t border-neutral-200/80 dark:border-neutral-800">
-              <span className="text-sm font-bold text-neutral-900 dark:text-white">TOTAL:</span>
+              <span className="text-sm font-bold text-neutral-900 dark:text-white">TOTAL A PAGAR:</span>
               <div className="text-right">
                 <span className="text-2xl font-extrabold text-apple-blue font-mono">
                   C$ {total.toFixed(2)}
@@ -444,7 +428,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
             }`}
           >
             <Check className="w-4 h-4 stroke-[2.5]" />
-            <span>Emitir Factura & Descontar Stock</span>
+            <span>Cobrar & Emitir Factura</span>
           </button>
         </div>
       </div>
@@ -457,7 +441,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
             <div className="flex items-center justify-between pb-3 border-b border-neutral-200 dark:border-neutral-800">
               <div className="flex items-center gap-2 text-apple-green font-semibold text-xs">
                 <FileCheck className="w-4 h-4" />
-                <span>Venta Registrada Exitosamente</span>
+                <span>Pago Procesado Exitosamente</span>
               </div>
               <button
                 type="button"
@@ -473,13 +457,15 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
               <div className="text-center pb-2 border-b border-dashed border-neutral-300 dark:border-neutral-700">
                 <p className="font-bold text-sm uppercase">{tenant.name}</p>
                 <p className="text-[10px] text-neutral-500">RUC: {tenant.taxId || "J031000049102"}</p>
-                <p className="text-[10px] text-neutral-500">TICKET: {lastSale.invoiceNumber}</p>
+                <p className="text-[10px] text-neutral-500">{tenant.city}, Nicaragua</p>
+                <p className="text-[10px] text-neutral-500">FACTURA: {lastSale.invoiceNumber}</p>
                 <p className="text-[9px] text-neutral-400">{new Date(lastSale.createdAt).toLocaleString("es-NI")}</p>
               </div>
 
               <div className="text-[11px] pb-2 border-b border-dashed border-neutral-300 dark:border-neutral-700">
                 <p>Cliente: {lastSale.customer?.name || "Contado"}</p>
-                <p>Pago: {lastSale.paymentMethod === "credit" ? "CRÉDITO (FIADO)" : "CONTADO"}</p>
+                <p>Forma de Pago: {lastSale.paymentMethod === "cash" ? "EFECTIVO" : lastSale.paymentMethod === "card" ? "TARJETA" : "TRANSFERENCIA BANCARIA"}</p>
+                <p className="text-apple-green font-bold">ESTADO: PAGADO EN CAJA</p>
               </div>
 
               <div className="space-y-1 text-[11px]">
@@ -510,13 +496,11 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  window.print();
-                }}
+                onClick={() => window.print()}
                 className="flex-1 py-2.5 px-4 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-semibold shadow-sm flex items-center justify-center gap-1.5"
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span>Imprimir Ticket</span>
+                <span>Imprimir Factura</span>
               </button>
               <button
                 type="button"

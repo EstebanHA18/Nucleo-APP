@@ -1,8 +1,8 @@
-// Tipos principales para Núcleo ERP Modular
+// Tipos principales para Núcleo ERP Modular (Sin fiados, 100% Contado/Tarjeta/Transferencia)
 
 export type BusinessVertical = 
   | 'ferreteria'
-  | 'comercio' // Pulperías, minisúper, tiendas
+  | 'comercio'
   | 'agroservicio'
   | 'restaurante'
   | 'distribuidora'
@@ -11,21 +11,16 @@ export type BusinessVertical =
   | 'taller'
   | 'constructora'
   | 'bodega'
-  | 'financiera'
-  | 'chatarrera'
-  | 'ganaderia'
   | 'personalizado';
 
 export type ModuleKey = 
   | 'pos'
   | 'inventory'
   | 'billing'
-  | 'crm'
-  | 'receivables' // Cuentas por cobrar / Fiados
-  | 'payables'    // Cuentas por pagar
-  | 'hr'          // RRHH & Nómina
-  | 'expenses'    // Gastos y caja chica
-  | 'production'  // Producción & Recetas
+  | 'customers'  // Directorio de clientes & CRM (Sin fiados)
+  | 'expenses'   // Gastos y caja chica
+  | 'hr'         // RRHH & Nómina
+  | 'production' // Producción & Recetas
   | 'reports';
 
 export interface ModuleConfig {
@@ -39,7 +34,7 @@ export interface ModuleConfig {
 
 export interface UnitOfMeasure {
   id: string;
-  code: string; // 'und', 'mtr', 'vara', 'lbr', 'qq', 'paq', 'gal', 'lt'
+  code: string;
   name: string;
   ratio: number;
 }
@@ -71,19 +66,21 @@ export interface CartItem {
 export interface Customer {
   id: string;
   name: string;
+  businessName?: string; // Razón Social
   phone: string;
   email?: string;
-  taxId?: string; // RUC / Cédula
-  allowCredit: boolean;
-  creditLimit: number;
-  currentBalance: number; // Saldo deudor
+  taxId?: string;        // RUC / Cédula
+  address?: string;
+  city?: string;
+  totalPurchases: number; // Total acumulado comprado
+  lastPurchaseDate?: string;
 }
 
 export interface Sale {
   id: string;
   invoiceNumber: string;
   customer?: Customer;
-  paymentMethod: 'cash' | 'credit' | 'card' | 'transfer';
+  paymentMethod: 'cash' | 'card' | 'transfer';
   items: CartItem[];
   subtotal: number;
   tax: number;
@@ -94,19 +91,6 @@ export interface Sale {
   exchangeRate: number;
   createdAt: string;
   isOfflineSynced?: boolean;
-}
-
-export interface Receivable {
-  id: string;
-  saleId: string;
-  invoiceNumber: string;
-  customer: Customer;
-  totalAmount: number;
-  paidAmount: number;
-  balance: number;
-  dueDate: string;
-  status: 'pending' | 'partial' | 'paid' | 'overdue';
-  createdAt: string;
 }
 
 export interface CashRegister {
@@ -120,17 +104,29 @@ export interface CashRegister {
   openedAt: string;
 }
 
+export interface OwnerProfile {
+  fullName: string;
+  email: string;
+  phone: string;
+  role: string;
+  pinCode?: string;
+}
+
 export interface TenantSettings {
   id: string;
   name: string;
+  legalName?: string;
+  taxId?: string; // RUC
+  phone?: string;
+  email?: string;
+  address?: string;
+  city?: string;
+  owner: OwnerProfile;
   businessVertical: BusinessVertical;
   currency: 'NIO' | 'USD';
   secondaryCurrency: 'USD' | 'NIO';
   exchangeRate: number;
   taxPercentage: number;
-  taxId?: string;
-  phone?: string;
-  address?: string;
   activeModules: ModuleKey[];
   ticketFormat: '58mm' | '80mm' | 'letter';
   ticketHeader: string;

@@ -1,6 +1,7 @@
 -- ==============================================================================
 -- NÚCLEO ERP - MULTI-TENANT MODULAR SCHEMA
 -- Compatible con Supabase PostgreSQL + Row Level Security (RLS)
+-- Modelo 100% Contado / Tarjeta / Transferencia (Sin fiados)
 -- ==============================================================================
 
 -- Habilitar extensión UUID
@@ -10,20 +11,22 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS public.tenants (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
+    legal_name TEXT,
     slug TEXT UNIQUE NOT NULL,
-    business_type TEXT NOT NULL DEFAULT 'general', -- 'ferreteria', 'pulperia', 'agroservicio', 'restaurante', 'farmacia', etc.
+    business_type TEXT NOT NULL DEFAULT 'ferreteria',
     currency TEXT NOT NULL DEFAULT 'NIO', -- 'NIO' | 'USD'
     secondary_currency TEXT DEFAULT 'USD',
-    exchange_rate NUMERIC(10, 4) DEFAULT 36.6200, -- Tipo de cambio Córdoba / Dólar
-    tax_percentage NUMERIC(5, 2) DEFAULT 15.00, -- 15% IVA Nicaragua
-    tax_id TEXT, -- RUC / Cédula
+    exchange_rate NUMERIC(10, 4) DEFAULT 36.6200,
+    tax_percentage NUMERIC(5, 2) DEFAULT 15.00,
+    tax_id TEXT, -- RUC
     phone TEXT,
     email TEXT,
     address TEXT,
+    city TEXT DEFAULT 'Chinandega',
     logo_url TEXT,
-    subscription_plan TEXT NOT NULL DEFAULT 'starter', -- 'starter', 'pro', 'enterprise'
-    subscription_status TEXT NOT NULL DEFAULT 'active', -- 'active', 'trial', 'past_due', 'suspended'
-    monthly_price NUMERIC(10, 2) DEFAULT 0.00,
+    subscription_plan TEXT NOT NULL DEFAULT 'pro',
+    subscription_status TEXT NOT NULL DEFAULT 'active',
+    monthly_price NUMERIC(10, 2) DEFAULT 29.00,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -32,7 +35,7 @@ CREATE TABLE IF NOT EXISTS public.tenants (
 CREATE TABLE IF NOT EXISTS public.tenant_modules (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    module_key TEXT NOT NULL, -- 'pos', 'inventory', 'billing', 'crm', 'receivables', 'expenses', 'hr', 'production'
+    module_key TEXT NOT NULL, -- 'pos', 'inventory', 'billing', 'customers', 'expenses', 'hr', 'production'
     is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
     settings JSONB DEFAULT '{}'::jsonb,
     activated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -53,7 +56,7 @@ CREATE TABLE IF NOT EXISTS public.roles (
 CREATE TABLE IF NOT EXISTS public.role_permissions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     role_id UUID NOT NULL REFERENCES public.roles(id) ON DELETE CASCADE,
-    permission_key TEXT NOT NULL, -- e.g. 'inventory.read', 'inventory.write', 'sales.create', 'sales.refund', 'invoices.cancel'
+    permission_key TEXT NOT NULL,
     UNIQUE(role_id, permission_key)
 );
 
@@ -64,20 +67,22 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     role_id UUID REFERENCES public.roles(id) ON DELETE SET NULL,
     full_name TEXT NOT NULL,
     email TEXT NOT NULL,
+    phone TEXT,
+    pin_code TEXT,
     avatar_url TEXT,
     is_owner BOOLEAN DEFAULT FALSE,
-    is_superadmin BOOLEAN DEFAULT FALSE, -- Para el control maestro tipo Terminal
+    is_superadmin BOOLEAN DEFAULT FALSE,
     status TEXT DEFAULT 'active',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. UNIDADES DE MEDIDA (Adaptadas al mercado local)
+-- 6. UNIDADES DE MEDIDA
 CREATE TABLE IF NOT EXISTS public.units_of_measure (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
     code TEXT NOT NULL, -- 'und', 'mtr', 'vara', 'lbr', 'qq', 'paq', 'gal', 'lt'
-    name TEXT NOT NULL, -- 'Unidad', 'Metro', 'Vara', 'Libra', 'Quintal', 'Paquete'
-    conversion_ratio NUMERIC(12, 4) DEFAULT 1.0000, -- Ratio respecto a unidad base
+    name TEXT NOT NULL,
+    conversion_ratio NUMERIC(12, 4) DEFAULT 1.0000,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -111,7 +116,7 @@ CREATE TABLE IF NOT EXISTS public.products (
     sale_price NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     min_stock NUMERIC(12, 2) DEFAULT 5.00,
     current_stock NUMERIC(12, 2) DEFAULT 0.00,
-    track_batches BOOLEAN DEFAULT FALSE, -- Vital para farmacias y agroservicios (vencimientos)
+    track_batches BOOLEAN DEFAULT FALSE,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -137,42 +142,40 @@ CREATE TABLE IF NOT EXISTS public.inventory_movements (
     movement_type TEXT NOT NULL, -- 'sale', 'purchase', 'adjustment_in', 'adjustment_out', 'transfer'
     quantity NUMERIC(12, 2) NOT NULL,
     unit_cost NUMERIC(12, 2) NOT NULL,
-    reference_id UUID, -- ID de venta, compra o ajuste
+    reference_id UUID,
     notes TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 11. CAJAS REGISTRADORAS & ARQUEOS
+-- 11. CAJAS REGISTRADORAS
 CREATE TABLE IF NOT EXISTS public.cash_registers (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
     name TEXT NOT NULL DEFAULT 'Caja Principal',
-    status TEXT NOT NULL DEFAULT 'open', -- 'open', 'closed'
+    status TEXT NOT NULL DEFAULT 'open',
     opened_by UUID REFERENCES public.profiles(id),
     opening_amount NUMERIC(12, 2) DEFAULT 0.00,
-    expected_amount NUMERIC(12, 2) DEFAULT 0.00,
-    actual_amount NUMERIC(12, 2) DEFAULT 0.00,
-    difference NUMERIC(12, 2) DEFAULT 0.00,
+    sales_amount NUMERIC(12, 2) DEFAULT 0.00,
     opened_at TIMESTAMPTZ DEFAULT NOW(),
     closed_at TIMESTAMPTZ
 );
 
--- 12. CLIENTES (B2B / B2C / Fiados)
+-- 12. DIRECTORIO DE CLIENTES (Facturación Comercial y Fiscal)
 CREATE TABLE IF NOT EXISTS public.customers (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
+    business_name TEXT,
     phone TEXT,
     email TEXT,
     address TEXT,
-    tax_id TEXT,
-    allow_credit BOOLEAN DEFAULT FALSE,
-    credit_limit NUMERIC(12, 2) DEFAULT 0.00,
-    current_balance NUMERIC(12, 2) DEFAULT 0.00, -- Deuda acumulada
+    city TEXT DEFAULT 'Chinandega',
+    tax_id TEXT, -- RUC / Cédula
+    total_purchases NUMERIC(12, 2) DEFAULT 0.00,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 13. VENTAS / FACTURAS
+-- 13. VENTAS / FACTURAS (100% Contado / Tarjeta / Transferencia)
 CREATE TABLE IF NOT EXISTS public.sales (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
@@ -180,7 +183,7 @@ CREATE TABLE IF NOT EXISTS public.sales (
     customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
     cash_register_id UUID REFERENCES public.cash_registers(id) ON DELETE SET NULL,
     seller_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
-    payment_method TEXT NOT NULL DEFAULT 'cash', -- 'cash', 'credit' (fiado), 'card', 'transfer'
+    payment_method TEXT NOT NULL DEFAULT 'cash', -- 'cash', 'card', 'transfer'
     currency TEXT NOT NULL DEFAULT 'NIO',
     exchange_rate NUMERIC(10, 4) DEFAULT 36.6200,
     subtotal NUMERIC(12, 2) NOT NULL,
@@ -189,7 +192,7 @@ CREATE TABLE IF NOT EXISTS public.sales (
     total NUMERIC(12, 2) NOT NULL,
     cost_total NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     profit NUMERIC(12, 2) GENERATED ALWAYS AS (total - cost_total) STORED,
-    status TEXT NOT NULL DEFAULT 'completed', -- 'completed', 'cancelled'
+    status TEXT NOT NULL DEFAULT 'completed',
     notes TEXT,
     offline_synced BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -208,44 +211,16 @@ CREATE TABLE IF NOT EXISTS public.sale_items (
     subtotal NUMERIC(12, 2) NOT NULL
 );
 
--- 15. CUENTAS POR COBRAR (FIADOS / CRÉDITOS)
-CREATE TABLE IF NOT EXISTS public.receivables (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    customer_id UUID NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
-    sale_id UUID NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
-    total_amount NUMERIC(12, 2) NOT NULL,
-    paid_amount NUMERIC(12, 2) DEFAULT 0.00,
-    balance NUMERIC(12, 2) NOT NULL,
-    due_date DATE,
-    status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'partial', 'paid', 'overdue'
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 16. ABONOS DE CRÉDITO
-CREATE TABLE IF NOT EXISTS public.receivable_payments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    receivable_id UUID NOT NULL REFERENCES public.receivables(id) ON DELETE CASCADE,
-    customer_id UUID NOT NULL REFERENCES public.customers(id),
-    amount NUMERIC(12, 2) NOT NULL,
-    payment_method TEXT DEFAULT 'cash',
-    cash_register_id UUID REFERENCES public.cash_registers(id),
-    notes TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 17. CONFIGURACIÓN DE TICKET / FACTURA
+-- 15. CONFIGURACIÓN DE TICKET / FACTURA
 CREATE TABLE IF NOT EXISTS public.ticket_configurations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
     paper_format TEXT DEFAULT '80mm', -- '58mm', '80mm', 'letter'
     header_title TEXT,
     header_subtitle TEXT,
-    footer_message TEXT DEFAULT '¡Gracias por su compra!',
+    footer_message TEXT DEFAULT '¡Gracias por su compra! Venta al contado.',
     show_logo BOOLEAN DEFAULT TRUE,
     show_tax_details BOOLEAN DEFAULT TRUE,
-    show_exchange_rate BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -260,15 +235,12 @@ ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sale_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cash_registers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.receivables ENABLE ROW LEVEL SECURITY;
 
--- Helper function to get current user's tenant_id
 CREATE OR REPLACE FUNCTION public.get_current_tenant_id()
 RETURNS UUID AS $$
     SELECT tenant_id FROM public.profiles WHERE id = auth.uid() LIMIT 1;
 $$ LANGUAGE SQL STABLE SECURITY DEFINER;
 
--- Permisos básicos para RLS
 CREATE POLICY "Users can view data in their tenant" ON public.products
     FOR ALL USING (tenant_id = public.get_current_tenant_id());
 

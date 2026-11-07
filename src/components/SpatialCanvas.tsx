@@ -36,17 +36,17 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
 
   const nodeDetails: Record<string, any> = {
     crm: {
-      tag: "CRM & CUENTAS B2B",
-      title: "Nodo Clientes & WhatsApp Cloud",
-      desc: "Gestión de cartera, cotizaciones y recordatorios de crédito automáticos.",
+      tag: "DIRECTORIO B2B / B2C",
+      title: "Nodo Clientes & Directorio",
+      desc: "Expediente de clientes, historial de compras al contado y datos de facturación con RUC.",
       stat: "1,420 Clientes",
-      statSub: "+18 registrados este mes",
-      linkView: "receivables",
-      linkText: "Abrir Cartera de Clientes",
+      statSub: "Expedientes validados en sistema",
+      linkView: "customers",
+      linkText: "Abrir Directorio de Clientes",
       events: [
-        "[16:44:10] WA_SESSION: 1,420 cuentas sincronizadas",
-        "[16:43:50] PIPELINE: Cotización aprobada #912",
-        "[16:42:15] ALERTA: Constructora Martínez cupo crediticio 80%",
+        "[16:44:10] DIRECTORY: 1,420 cuentas sincronizadas",
+        "[16:43:50] HISTORIAL: Compra registrada Ing. Carlos Martínez",
+        "[16:42:15] PERFIL: Factura emitida con RUC Corporativo",
       ],
     },
     sales: {
@@ -59,7 +59,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
       linkText: "Ir al Terminal de Ventas",
       events: [
         "[16:44:02] VENTA_POS: Factura #000482 - C$ 825.00",
-        "[16:43:21] CAJA_CHICA: Arqueo parcial conforme",
+        "[16:43:21] CAJA: Pago en efectivo completado",
         "[16:42:01] FISCAL_SYNC: Comprobante validado DGI",
       ],
     },
@@ -72,36 +72,36 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
       linkView: "inventory",
       linkText: "Gestionar Bodega & Kardex",
       events: [
-        `[16:43:12] ALERTA_STOCK: ${lowStockProducts.length} artículos por debajo de la reserva mínima`,
-        "[16:41:55] KARDEX: Salida de almacén vinculada a POS",
-        "[16:40:00] BODEGA_A1: 99.2% de precisión física",
+        `[16:43:12] ALERTA_STOCK: ${lowStockProducts.length} artículos por debajo del stock mínimo`,
+        "[16:41:55] KARDEX: Salida de almacén vinculada a venta",
+        "[16:40:00] BODEGA_A1: 99.8% de precisión en inventario",
       ],
     },
     finance: {
-      tag: "TESORERÍA & BÓVEDA",
-      title: "Finanzas & Cuentas por Cobrar",
-      desc: "Libro de ingresos, arqueo de efectivo y control de abonos de fiados.",
+      tag: "TESORERÍA & CAJA",
+      title: "Finanzas & Reportes de Caja",
+      desc: "Libro de ingresos diarios, arqueo de efectivo y balance en cuentas BAC/Banpro.",
       stat: "$148,920.00 USD",
-      statSub: "Valoración de activos líquidos",
-      linkView: "receivables",
-      linkText: "Ver Cuentas por Cobrar",
+      statSub: "Valoración de ingresos y flujo de caja",
+      linkView: "pos",
+      linkText: "Ver Reportes de Caja",
       events: [
-        "[16:44:11] COBRANZA: Abono registrado C$ 2,500.00 Don Manuel",
-        "[16:43:00] ASIENTO_AUTO: Registro automático de ingresos diarios",
+        "[16:44:11] BANCO_BAC: Pago con tarjeta C$ 4,500.00 confirmado",
+        "[16:43:00] CAJA_CHICA: Arqueo conforme con recibos",
         "[16:38:22] CAJA_FISICA: Efectivo arqueado C$ 18,400.00",
       ],
     },
     automation: {
       tag: "MOTOR DE REGLAS",
       title: "Automatizaciones & Disparadores",
-      desc: "Reabastecimiento predictivo de materiales y recordatorios amigables de cobranza.",
+      desc: "Reabastecimiento predictivo de materiales y alertas de stock.",
       stat: "18 Reglas Activas",
       statSub: "100% de ejecuciones exitosas",
       linkView: "pos",
       linkText: "Ver Automatizaciones",
       events: [
         "[16:43:40] REORDEN: Sugerencia de compra para Cemento Holcim",
-        "[16:42:10] CRON_RECORDATORIO: 6 avisos emitidos",
+        "[16:42:10] ALERTA: Stock de varillas 3/8 próximo a mínimo",
         "[16:39:50] STATUS: Motor operativo sin incidencias",
       ],
     },
@@ -183,7 +183,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
           </circle>
         </svg>
 
-        {/* NODE 1: CRM & Clientes (Top Left) */}
+        {/* NODE 1: Clientes & Directorio (Top Left) */}
         <div
           onClick={() => setSelectedNode("crm")}
           className={`absolute top-10 left-4 sm:left-10 w-64 p-4 rounded-2xl cursor-pointer transition-all duration-300 z-10 ${
@@ -199,17 +199,17 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
               </div>
               <div>
                 <span className="text-[10px] font-mono text-neutral-400 block font-semibold">NODO 01</span>
-                <h4 className="text-xs font-bold text-neutral-900 dark:text-white">CRM & Cuentas</h4>
+                <h4 className="text-xs font-bold text-neutral-900 dark:text-white">Directorio Clientes</h4>
               </div>
             </div>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-apple-green/10 text-apple-green font-semibold">
-              WhatsApp
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-apple-blue/10 text-apple-blue font-semibold">
+              Activo
             </span>
           </div>
           <div className="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">
             1,420
           </div>
-          <span className="text-[11px] text-neutral-500 block">Clientes activos en cartera</span>
+          <span className="text-[11px] text-neutral-500 block">Clientes registrados para facturación</span>
         </div>
 
         {/* NODE 2: POS Central (Center Nuclear) */}
@@ -305,7 +305,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
               </div>
               <div>
                 <span className="text-[10px] font-mono text-neutral-400 block font-semibold">NODO 04</span>
-                <h4 className="text-xs font-bold text-neutral-900 dark:text-white">Finanzas & Bóveda</h4>
+                <h4 className="text-xs font-bold text-neutral-900 dark:text-white">Finanzas & Caja</h4>
               </div>
             </div>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-apple-green/10 text-apple-green font-semibold">
@@ -315,7 +315,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
           <div className="text-xl font-bold text-apple-green tracking-tight font-mono">
             $148,920.00
           </div>
-          <span className="text-[11px] text-neutral-500 block">Flujo de caja y cuentas BAC/BDF</span>
+          <span className="text-[11px] text-neutral-500 block">Flujo de caja y cuentas bancarias</span>
         </div>
 
         {/* NODE 5: Automatizaciones & Lógica (Bottom Left) */}
@@ -350,7 +350,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
         </div>
       </div>
 
-      {/* Slide-over Inspector for Selected Node */}
+      {/* Slide-over Inspector */}
       {activeMeta && (
         <aside className="absolute top-0 right-0 h-full w-80 sm:w-96 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl p-6 border-l border-neutral-200 dark:border-neutral-800 shadow-2xl z-30 flex flex-col justify-between animate-fadeIn">
           <div className="space-y-5">

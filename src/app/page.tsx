@@ -7,7 +7,7 @@ import { AppleWizard } from "@/components/AppleWizard";
 import { SpatialCanvas } from "@/components/SpatialCanvas";
 import { POSTerminal } from "@/components/POSTerminal";
 import { InventoryManager } from "@/components/InventoryManager";
-import { ReceivablesManager } from "@/components/ReceivablesManager";
+import { CustomersManager } from "@/components/CustomersManager";
 import { SuperAdminTerminal } from "@/components/SuperAdminTerminal";
 import { DashboardBuilder } from "@/components/DashboardBuilder";
 import { CommandPalette } from "@/components/CommandPalette";
@@ -35,7 +35,6 @@ export default function Home() {
 
   // Initialize
   useEffect(() => {
-    // Check dark mode
     if (typeof window !== "undefined") {
       setIsOnline(navigator.onLine);
       const handleOnline = () => setIsOnline(true);
@@ -104,7 +103,7 @@ export default function Home() {
         <AppleWizard onComplete={handleWizardComplete} />
       )}
 
-      {/* Main App Layout (available once tenant is loaded) */}
+      {/* Main App Layout */}
       {tenant && (
         <>
           {/* Top Bar */}
@@ -156,8 +155,8 @@ export default function Home() {
               />
             )}
 
-            {activeView === "receivables" && (
-              <ReceivablesManager
+            {activeView === "customers" && (
+              <CustomersManager
                 tenant={tenant}
                 customers={customers}
                 setCustomers={setCustomers}

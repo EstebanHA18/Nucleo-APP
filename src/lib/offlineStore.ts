@@ -81,7 +81,7 @@ export const recordSaleLocally = (sale: Sale): { updatedProducts: Product[]; upd
     localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(sales));
   }
 
-  // Descontar inventario automáticamente
+  // 1. Descontar inventario automáticamente
   const products = getStoredProducts();
   const updatedProducts = products.map((prod) => {
     const itemInSale = sale.items.find((it) => it.product.id === prod.id);
@@ -93,15 +93,16 @@ export const recordSaleLocally = (sale: Sale): { updatedProducts: Product[]; upd
   });
   saveStoredProducts(updatedProducts);
 
-  // Si fue venta al crédito (fiado), aumentar saldo deudor del cliente
+  // 2. Actualizar historial de compra del cliente
   const customers = getStoredCustomers();
   let updatedCustomers = customers;
-  if (sale.paymentMethod === "credit" && sale.customer) {
+  if (sale.customer && sale.customer.id !== "cust-4") {
     updatedCustomers = customers.map((c) => {
       if (c.id === sale.customer?.id) {
         return {
           ...c,
-          currentBalance: c.currentBalance + sale.total,
+          totalPurchases: (c.totalPurchases || 0) + sale.total,
+          lastPurchaseDate: new Date().toISOString().split("T")[0],
         };
       }
       return c;
@@ -109,7 +110,7 @@ export const recordSaleLocally = (sale: Sale): { updatedProducts: Product[]; upd
     saveStoredCustomers(updatedCustomers);
   }
 
-  // Agregar a la cola offline si no hay conexión
+  // 3. Cola offline
   if (typeof window !== "undefined" && !navigator.onLine) {
     const queueRaw = localStorage.getItem(STORAGE_KEYS.OFFLINE_QUEUE) || "[]";
     try {
