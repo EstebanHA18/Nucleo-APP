@@ -93,7 +93,11 @@ export interface Sale {
   id: string;
   invoiceNumber: string;
   customer?: Customer;
+  customerName?: string;
+  customerTaxId?: string;
   paymentMethod: 'cash' | 'card' | 'transfer';
+  amountPaid: number;      // Con cuánto pagó el cliente
+  changeGiven: number;     // Vuelto entregado
   items: CartItem[];
   subtotal: number;
   tax: number;
@@ -103,8 +107,29 @@ export interface Sale {
   currency: 'NIO' | 'USD';
   exchangeRate: number;
   createdAt: string;
+  cashierName?: string;
   sellerName?: string;
   isOfflineSynced?: boolean;
+}
+
+export interface CashRegisterSession {
+  id: string;
+  status: 'open' | 'closed';
+  openedBy: string;
+  openedAt: string;
+  openingAmount: number;
+  closedBy?: string;
+  closedAt?: string;
+  cashSalesTotal: number;
+  cardSalesTotal: number;
+  transferSalesTotal: number;
+  totalSales: number;
+  totalProfit: number;
+  salesCount: number;
+  expectedCashInDrawer: number;
+  actualCashInDrawer?: number;
+  difference?: number; // Sobrante (+) o Faltante (-)
+  notes?: string;
 }
 
 export interface CashRegister {

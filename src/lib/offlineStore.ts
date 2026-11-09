@@ -1,4 +1,4 @@
-import { Product, Customer, Sale, TenantSettings, AppUser, Batch } from "@/types";
+import { Product, Customer, Sale, TenantSettings, AppUser, Batch, CashRegisterSession } from "@/types";
 import { INITIAL_PRODUCTS, INITIAL_CUSTOMERS } from "./constants";
 
 export function getBatchExpirationStatus(dateStr?: string): {
@@ -54,6 +54,8 @@ const STORAGE_KEYS = {
   USERS: "nucleo_users",
   CURRENT_USER: "nucleo_current_user",
   OFFLINE_QUEUE: "nucleo_offline_queue",
+  CASH_SESSION: "nucleo_cash_session",
+  CASH_SESSION_HISTORY: "nucleo_cash_session_history",
 };
 
 export const getStoredTenant = (): TenantSettings | null => {
@@ -380,5 +382,138 @@ export const recordSaleLocally = (sale: Sale): { updatedProducts: Product[]; upd
     saveStoredCustomers(updatedCustomers);
   }
 
+  // 3. Registrar venta en la sesión de caja activa
+  try {
+    const session = getCurrentCashSession();
+    if (session.status === "open") {
+      const isCash = sale.paymentMethod === "cash";
+      const isCard = sale.paymentMethod === "card";
+      const isTransfer = sale.paymentMethod === "transfer";
+
+      const updatedSession: CashRegisterSession = {
+        ...session,
+        cashSalesTotal: session.cashSalesTotal + (isCash ? sale.total : 0),
+        cardSalesTotal: session.cardSalesTotal + (isCard ? sale.total : 0),
+        transferSalesTotal: session.transferSalesTotal + (isTransfer ? sale.total : 0),
+        totalSales: session.totalSales + sale.total,
+        totalProfit: session.totalProfit + sale.profit,
+        salesCount: session.salesCount + 1,
+        expectedCashInDrawer: session.openingAmount + session.cashSalesTotal + (isCash ? sale.total : 0),
+      };
+      saveCurrentCashSession(updatedSession);
+    }
+  } catch (err) {
+    console.error("Error updating cash session with sale:", err);
+  }
+
   return { updatedProducts, updatedCustomers };
+};
+
+// ==========================================
+// GESTIÓN DE SESIÓN DE CAJA (ARQUEO Y TURNOS)
+// ==========================================
+
+export const getCurrentCashSession = (): CashRegisterSession => {
+  if (typeof window === "undefined") {
+    return {
+      id: "session-default",
+      status: "closed",
+      openedBy: "Cajero",
+      openedAt: new Date().toISOString(),
+      openingAmount: 0,
+      cashSalesTotal: 0,
+      cardSalesTotal: 0,
+      transferSalesTotal: 0,
+      totalSales: 0,
+      totalProfit: 0,
+      salesCount: 0,
+      expectedCashInDrawer: 0,
+    };
+  }
+
+  const raw = localStorage.getItem(STORAGE_KEYS.CASH_SESSION);
+  if (raw) {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      // fallback
+    }
+  }
+
+  // Sesión inicial abierta por defecto con C$ 1,000 para no bloquear al usuario si no la ha cerrado
+  const defaultSession: CashRegisterSession = {
+    id: "session-" + Date.now(),
+    status: "open",
+    openedBy: "Juan Carlos Cajero",
+    openedAt: new Date().toISOString(),
+    openingAmount: 1000.0,
+    cashSalesTotal: 0,
+    cardSalesTotal: 0,
+    transferSalesTotal: 0,
+    totalSales: 0,
+    totalProfit: 0,
+    salesCount: 0,
+    expectedCashInDrawer: 1000.0,
+  };
+  localStorage.setItem(STORAGE_KEYS.CASH_SESSION, JSON.stringify(defaultSession));
+  return defaultSession;
+};
+
+export const saveCurrentCashSession = (session: CashRegisterSession) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEYS.CASH_SESSION, JSON.stringify(session));
+};
+
+export const openCashSession = (openingAmount: number, cashierName: string): CashRegisterSession => {
+  const newSession: CashRegisterSession = {
+    id: "session-" + Date.now(),
+    status: "open",
+    openedBy: cashierName || "Cajero",
+    openedAt: new Date().toISOString(),
+    openingAmount: Math.max(0, openingAmount),
+    cashSalesTotal: 0,
+    cardSalesTotal: 0,
+    transferSalesTotal: 0,
+    totalSales: 0,
+    totalProfit: 0,
+    salesCount: 0,
+    expectedCashInDrawer: Math.max(0, openingAmount),
+  };
+  saveCurrentCashSession(newSession);
+  return newSession;
+};
+
+export const closeCashSession = (
+  actualCashInDrawer: number,
+  closedBy: string,
+  notes?: string
+): CashRegisterSession => {
+  const current = getCurrentCashSession();
+  const diff = actualCashInDrawer - current.expectedCashInDrawer;
+
+  const closedSession: CashRegisterSession = {
+    ...current,
+    status: "closed",
+    closedBy,
+    closedAt: new Date().toISOString(),
+    actualCashInDrawer,
+    difference: diff,
+    notes: notes || "",
+  };
+
+  saveCurrentCashSession(closedSession);
+
+  // Guardar en histórico de cierres
+  if (typeof window !== "undefined") {
+    try {
+      const historyRaw = localStorage.getItem(STORAGE_KEYS.CASH_SESSION_HISTORY);
+      const history: CashRegisterSession[] = historyRaw ? JSON.parse(historyRaw) : [];
+      history.unshift(closedSession);
+      localStorage.setItem(STORAGE_KEYS.CASH_SESSION_HISTORY, JSON.stringify(history));
+    } catch (e) {
+      console.error("Error saving cash session history", e);
+    }
+  }
+
+  return closedSession;
 };
