@@ -6,17 +6,15 @@ import {
   Receipt, 
   Package, 
   Wallet, 
-  Cpu, 
   ArrowRight, 
-  TrendingUp, 
-  AlertTriangle, 
   X, 
-  Sparkles,
   Layers,
   UserCheck,
   FileText,
   BarChart3,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Activity,
+  Cpu
 } from "lucide-react";
 import { TenantSettings, Product, Customer, Sale, ModuleKey } from "@/types";
 
@@ -37,23 +35,28 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
   onNavigate,
   onOpenSettingsWizard,
 }) => {
-  const [selectedNodeKey, setSelectedNodeKey] = useState<ModuleKey | "automation">("pos");
+  // POR DEFECTO CERRADO (null), solo se abre al hacer clic en un módulo
+  const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
 
-  // Métricas calculadas
+  // Métricas dinámicas calculadas
   const lowStockProducts = products.filter((p) => p.stock <= p.minStock);
   const totalStockCount = products.reduce((acc, p) => acc + p.stock, 0);
   const totalSalesToday = sales.reduce((acc, s) => acc + s.total, 4892.5);
-  const totalProfitToday = sales.reduce((acc, s) => acc + s.profit, 1420.0);
   const corporateCustomers = customers.filter((c) => c.taxId && c.taxId.length > 5).length;
 
-  // Definición completa de cada módulo posible con sus datos dinámicos
+  // Catálogo completo de módulos con datos específicos
   const moduleMetaRegistry: Record<string, {
     nodeNum: string;
     title: string;
     category: string;
     badge: string;
     icon: React.ReactNode;
-    color: string;
+    colorScheme: {
+      accent: string;
+      bg: string;
+      glow: string;
+      lineColor: string;
+    };
     statMain: string;
     statSub: string;
     actionView: string;
@@ -62,14 +65,19 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
     events: string[];
   }> = {
     pos: {
-      nodeNum: "01",
+      nodeNum: "02",
       title: "Ventas & POS Terminal",
       category: "CORE TRANSACCIONAL",
       badge: "CORE",
       icon: <Receipt className="w-5 h-5" />,
-      color: "apple-blue",
+      colorScheme: {
+        accent: "text-apple-blue",
+        bg: "bg-apple-blue",
+        glow: "rgba(0, 122, 255, 0.3)",
+        lineColor: "#007aff",
+      },
       statMain: `C$ ${(totalSalesToday * (tenant.currency === "NIO" ? 1 : tenant.exchangeRate)).toLocaleString("es-NI", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      statSub: `≈ $${(totalSalesToday / tenant.exchangeRate).toFixed(2)} USD • ${sales.length + 48} tickets emitidos`,
+      statSub: `≈ $${(totalSalesToday / tenant.exchangeRate).toFixed(2)} USD (TC ${tenant.exchangeRate.toFixed(2)})`,
       actionView: "pos",
       actionLabel: "Abrir Terminal de Ventas",
       desc: "Terminal de venta rápida de mostrador, cálculo de márgenes y descuento automático de inventario.",
@@ -79,51 +87,66 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
         "[16:42:01] FISCAL_SYNC: Comprobante registrado",
       ],
     },
-    inventory: {
-      nodeNum: "02",
-      title: "Inventario & Kardex",
-      category: "LOGÍSTICA & BODEGA",
-      badge: lowStockProducts.length > 0 ? `${lowStockProducts.length} bajo` : "Óptimo",
-      icon: <Package className="w-5 h-5" />,
-      color: "apple-purple",
-      statMain: `${products.length} SKUs`,
-      statSub: `${totalStockCount} unidades clasificadas en bodega`,
-      actionView: "inventory",
-      actionLabel: "Gestionar Bodega & Kardex",
-      desc: "Control por medidas de unidad (varas, metros, sacos), lotes con vencimiento y reservas mínimas.",
-      events: [
-        `[16:43:12] ALERTA_STOCK: ${lowStockProducts.length} artículos por debajo del stock mínimo`,
-        "[16:41:55] KARDEX: Salida sincronizada con mostrador",
-        "[16:40:00] BODEGA_A1: 99.8% congruencia física",
-      ],
-    },
     customers: {
-      nodeNum: "03",
-      title: "Directorio de Clientes",
+      nodeNum: "01",
+      title: "Directorio Clientes",
       category: "GESTIÓN COMERCIAL",
       badge: "Activo",
-      icon: <Users className="w-5 h-5" />,
-      color: "apple-green",
-      statMain: `${customers.length} Clientes`,
-      statSub: `${corporateCustomers} con RUC registrado para facturación`,
+      icon: <Users className="w-4 h-4" />,
+      colorScheme: {
+        accent: "text-sky-400",
+        bg: "bg-sky-500",
+        glow: "rgba(56, 189, 248, 0.25)",
+        lineColor: "#38bdf8",
+      },
+      statMain: `${customers.length}`,
+      statSub: "Clientes registrados para facturación",
       actionView: "customers",
       actionLabel: "Ver Directorio de Clientes",
-      desc: "Cartera de clientes, teléfonos, datos fiscales para facturas y volumen acumulado de compras.",
+      desc: "Directorio B2B y B2C con RUC, teléfonos de contacto y volumen acumulado de compras.",
       events: [
         `[16:44:10] DIRECTORY: ${customers.length} expedientes sincronizados`,
-        "[16:43:50] HISTORIAL: Compra asociada a cliente corporativo",
+        "[16:43:50] HISTORIAL: Compra asociada a cliente",
         "[16:42:15] PERFIL: Datos de entrega y RUC verificados",
+      ],
+    },
+    inventory: {
+      nodeNum: "03",
+      title: "Inventario & Kardex",
+      category: "LOGÍSTICA & BODEGA",
+      badge: lowStockProducts.length > 0 ? `⚠️ ${lowStockProducts.length} bajo` : "Óptimo",
+      icon: <Package className="w-4 h-4" />,
+      colorScheme: {
+        accent: "text-purple-400",
+        bg: "bg-purple-500",
+        glow: "rgba(168, 85, 247, 0.25)",
+        lineColor: "#a855f7",
+      },
+      statMain: `${products.length} SKUs`,
+      statSub: `${totalStockCount} unidades en bodega`,
+      actionView: "inventory",
+      actionLabel: "Gestionar Bodega & Kardex",
+      desc: "Control por unidades (varas, metros, sacos), lotes con vencimiento y alertas de stock mínimo.",
+      events: [
+        `[16:43:12] ALERTA_STOCK: ${lowStockProducts.length} artículos por debajo del mínimo`,
+        "[16:41:55] KARDEX: Salida sincronizada con mostrador",
+        "[16:40:00] BODEGA: 99.8% congruencia física",
       ],
     },
     billing: {
       nodeNum: "04",
-      title: "Finanzas & Reportes",
+      title: "Finanzas & Caja",
       category: "TESORERÍA & CAJA",
       badge: "Conciliado",
-      icon: <FileText className="w-5 h-5" />,
-      color: "apple-green",
-      statMain: `$148,920.00 USD`,
-      statSub: "Valoración líquida y flujo de ingresos",
+      icon: <FileText className="w-4 h-4" />,
+      colorScheme: {
+        accent: "text-emerald-400",
+        bg: "bg-emerald-500",
+        glow: "rgba(52, 211, 153, 0.25)",
+        lineColor: "#34d399",
+      },
+      statMain: `$148,920.00`,
+      statSub: "Flujo de caja y cuentas bancarias",
       actionView: "pos",
       actionLabel: "Ver Libro Diario y Caja",
       desc: "Libro de ingresos, arqueo de turno y consolidación de pagos en efectivo, tarjeta o transferencia.",
@@ -138,31 +161,41 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
       title: "Gastos & Compras",
       category: "CONTROL DE EGRESOS",
       badge: "Controlado",
-      icon: <Wallet className="w-5 h-5" />,
-      color: "apple-orange",
+      icon: <Wallet className="w-4 h-4" />,
+      colorScheme: {
+        accent: "text-amber-400",
+        bg: "bg-amber-500",
+        glow: "rgba(251, 191, 36, 0.25)",
+        lineColor: "#fbbf24",
+      },
       statMain: "C$ 14,250.00",
-      statSub: "Compras a proveedores del período",
+      statSub: "Egresos y compras operativas",
       actionView: "inventory",
       actionLabel: "Ver Compras y Egresos",
       desc: "Registro de facturas de compras a proveedores, reabastecimiento y caja chica operativa.",
       events: [
-        "[15:20:10] ORDEN_COMPRA: Cemento Holcim 50 sacos",
-        "[14:10:00] GASTO_LOCAL: Pago de flete verificado",
-        "[12:00:00] PROVEEDOR: Factura ingresada al sistema",
+        "[15:20:10] COMPRA: Factura a proveedor registrada",
+        "[14:10:00] GASTO: Pago de flete verificado",
+        "[12:00:00] PROVEEDOR: Reabastecimiento conforme",
       ],
     },
     hr: {
       nodeNum: "06",
-      title: "RRHH & Nómina",
-      category: "TALENTO & ASISTENCIA",
+      title: "RRHH & Turnos",
+      category: "PERSONAL",
       badge: "Al Día",
-      icon: <UserCheck className="w-5 h-5" />,
-      color: "apple-teal",
-      statMain: "8 Empleados",
-      statSub: "Asistencia y cálculo salarial de turno",
+      icon: <UserCheck className="w-4 h-4" />,
+      colorScheme: {
+        accent: "text-teal-400",
+        bg: "bg-teal-500",
+        glow: "rgba(45, 212, 191, 0.25)",
+        lineColor: "#2dd4bf",
+      },
+      statMain: "8 Colaboradores",
+      statSub: "Turnos de cajeros y bodegueros",
       actionView: "users",
-      actionLabel: "Gestionar Personal & Roles",
-      desc: "Control de asistencia de cajeros y bodegueros, turnos laborales y permisos de sistema.",
+      actionLabel: "Gestionar Personal",
+      desc: "Asistencia de empleados, roles de acceso restringido y control de turnos.",
       events: [
         "[08:00:10] ASISTENCIA: Cajero 1 inició turno",
         "[08:02:00] ASISTENCIA: Bodeguero inició turno",
@@ -174,13 +207,18 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
       title: "Recetas & Producción",
       category: "TRANSFORMACIÓN",
       badge: "Recetas ON",
-      icon: <Layers className="w-5 h-5" />,
-      color: "apple-pink",
+      icon: <Layers className="w-4 h-4" />,
+      colorScheme: {
+        accent: "text-rose-400",
+        bg: "bg-rose-500",
+        glow: "rgba(251, 113, 133, 0.25)",
+        lineColor: "#fb7185",
+      },
       statMain: "24 Fórmulas",
       statSub: "Descuento automático de insumos",
       actionView: "inventory",
       actionLabel: "Ver Recetas e Insumos",
-      desc: "Descuenta automáticamente materia prima e insumos al registrar la venta del producto terminado.",
+      desc: "Descuenta materias primas automáticamente con cada venta de producto terminado.",
       events: [
         "[16:30:00] RECETA: Descuento de ingredientes en bodega",
         "[15:45:00] PRODUCCIÓN: Lote preparado con éxito",
@@ -189,249 +227,384 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
     },
     reports: {
       nodeNum: "08",
-      title: "Inteligencia & Reportes",
-      category: "MÉTRICAS GERENCIALES",
-      badge: "Auditoría",
-      icon: <BarChart3 className="w-5 h-5" />,
-      color: "apple-blue",
-      statMain: "+29.4% Margen",
-      statSub: "Rendimiento neto sobre costos",
+      title: "Motor de Lógica & KPIs",
+      category: "INTELIGENCIA",
+      badge: "10 Activas",
+      icon: <Cpu className="w-4 h-4" />,
+      colorScheme: {
+        accent: "text-cyan-400",
+        bg: "bg-cyan-500",
+        glow: "rgba(34, 211, 238, 0.25)",
+        lineColor: "#22d3ee",
+      },
+      statMain: "100% Éxito",
+      statSub: "Reórdenes y avisos automáticos",
       actionView: "dashboard",
       actionLabel: "Abrir Dashboard Gerencial",
-      desc: "Gráficos de rotación, proyección de ventas e inteligencia de negocio para el propietario.",
+      desc: "Monitoreo continuo de rotación, alertas automáticas de reposición y auditoría de ventas.",
       events: [
         "[16:40:00] KPI: Ticket promedio en alza",
-        "[15:00:00] AUDIT: Margen bruto consolidado",
+        "[15:00:00] MOTOR: Alerta de reposición despachada",
         "[12:30:00] REPORTE: Cierre de jornada proyectado",
       ],
     },
   };
 
-  // Filtrar los módulos que REALMENTE están activos para este negocio
-  const activeKeys = tenant.activeModules.filter((k) => moduleMetaRegistry[k]);
+  // Módulos activos para la empresa (excluyendo POS que es el nodo central nuclear)
+  const activeSatelliteKeys = tenant.activeModules.filter(
+    (k) => k !== "pos" && moduleMetaRegistry[k]
+  );
 
-  // Si por alguna razón no hubiera módulos, asegurarse de mostrar al menos POS e Inventario
-  const displayKeys = activeKeys.length > 0 ? activeKeys : (["pos", "inventory"] as ModuleKey[]);
+  // Si por alguna razón hay pocos satélites, aseguramos los representativos del rubro
+  const satelliteKeys = activeSatelliteKeys.length > 0 
+    ? activeSatelliteKeys 
+    : (["customers", "inventory", "reports", "billing"] as ModuleKey[]);
 
+  // Asignación de posiciones de órbita espacial alrededor del centro
+  // Cuadrantes: 0: Top-Left, 1: Top-Right, 2: Bottom-Left, 3: Bottom-Right
+  const orbitCoordinates = [
+    { posClass: "top-10 md:top-14 left-4 md:left-12", animClass: "animate-float-slow", x: 230, y: 160 },
+    { posClass: "top-10 md:top-14 right-4 md:right-12", animClass: "animate-float-reverse", x: 770, y: 160 },
+    { posClass: "bottom-10 md:bottom-14 left-4 md:left-12", animClass: "animate-float-delayed", x: 230, y: 540 },
+    { posClass: "bottom-10 md:bottom-14 right-4 md:right-12", animClass: "animate-float-slow", x: 770, y: 540 },
+    { posClass: "top-1/2 -translate-y-1/2 left-2 md:left-6", animClass: "animate-float-reverse", x: 140, y: 350 },
+    { posClass: "top-1/2 -translate-y-1/2 right-2 md:right-6", animClass: "animate-float-delayed", x: 860, y: 350 },
+  ];
+
+  const posCoreMeta = moduleMetaRegistry["pos"];
   const activeInspectorMeta = selectedNodeKey ? moduleMetaRegistry[selectedNodeKey] : null;
 
   return (
-    <div className="relative w-full min-h-[760px] rounded-3xl bg-neutral-50/70 dark:bg-[#121214]/60 border border-neutral-200/80 dark:border-neutral-800/80 overflow-hidden select-none p-4 md:p-6 transition-colors">
+    <div className="relative w-full min-h-[760px] md:h-[780px] rounded-3xl bg-[#0d0e12] border border-neutral-800/80 overflow-hidden select-none p-4 md:p-6 transition-all shadow-2xl">
       
-      {/* Subtle Dot Grid Background */}
+      {/* Fondo de constelación con rejilla radial fina */}
       <div 
-        className="absolute inset-0 pointer-events-none opacity-40 dark:opacity-20"
+        className="absolute inset-0 pointer-events-none opacity-25"
         style={{
-          backgroundImage: "radial-gradient(#86868b 1px, transparent 1px)",
+          backgroundImage: "radial-gradient(#4b5563 1px, transparent 1px)",
           backgroundSize: "28px 28px",
         }}
       />
 
-      {/* Ambient Glows */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-apple-blue/10 dark:bg-apple-blue/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-apple-purple/10 dark:bg-apple-purple/5 rounded-full blur-3xl pointer-events-none" />
+      {/* Bioluminiscencia de fondo */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] h-[480px] bg-apple-blue/10 rounded-full blur-[120px] pointer-events-none animate-pulse-glow" />
+      <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-purple-500/10 rounded-full blur-[90px] pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-emerald-500/10 rounded-full blur-[90px] pointer-events-none" />
 
-      {/* Top Telemetry Bar */}
-      <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 mb-6 px-2">
-        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 dark:bg-neutral-800/80 backdrop-blur-md border border-neutral-200 dark:border-neutral-700/80 shadow-2xs">
-          <span className="w-2 h-2 rounded-full bg-apple-green animate-pulse" />
-          <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+      {/* Barra superior de telemetría tipo Starlink / Apple UI */}
+      <div className="relative z-20 flex flex-wrap items-center justify-between gap-3 px-2 mb-2">
+        <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-neutral-900/90 backdrop-blur-md border border-neutral-800 shadow-sm text-xs">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="font-semibold text-neutral-200">
             Topología: Constelación {tenant.name}
           </span>
-          <span className="text-neutral-300 dark:text-neutral-600">/</span>
-          <span className="text-xs text-neutral-500 font-mono">
-            {displayKeys.length} Módulos Activos ({tenant.businessVertical.toUpperCase()})
+          <span className="text-neutral-600">/</span>
+          <span className="text-neutral-400 font-mono">
+            {satelliteKeys.length + 1} Módulos Activos
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-2 text-[11px] font-mono text-neutral-400 px-3 py-1 rounded-full bg-neutral-900/80 border border-neutral-800/80">
+            <span>Latencia: 12ms</span>
+            <span className="text-neutral-600">•</span>
+            <span className="text-emerald-400 flex items-center gap-1">
+              <Activity className="w-3 h-3 inline" />
+              Sync: Local ⇄ Nube
+            </span>
+          </div>
+
           <button
             type="button"
             onClick={onOpenSettingsWizard}
-            className="px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-300 text-xs font-medium transition-all flex items-center gap-1.5 border border-neutral-200 dark:border-neutral-700"
+            className="px-3 py-1.5 rounded-full bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-xs font-medium transition-all flex items-center gap-1.5 border border-neutral-700/80 hover:border-neutral-600"
           >
-            <SlidersHorizontal className="w-3 h-3 text-apple-blue" />
-            <span>Editar Módulos del Rubro</span>
+            <SlidersHorizontal className="w-3.5 h-3.5 text-apple-blue" />
+            <span className="hidden md:inline">Configurar</span>
           </button>
 
           <button
             type="button"
             onClick={() => onNavigate("pos")}
-            className="px-3.5 py-1 rounded-full bg-apple-blue text-white text-xs font-semibold hover:bg-apple-blue-hover transition-all flex items-center gap-1.5 shadow-sm"
+            className="px-4 py-1.5 rounded-full bg-apple-blue text-white text-xs font-semibold hover:bg-apple-blue-hover transition-all flex items-center gap-1.5 shadow-md shadow-apple-blue/20"
           >
             <span>Ir al POS</span>
-            <ArrowRight className="w-3 h-3" />
+            <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Dynamic Spatial Grid de Nodos según los módulos seleccionados por el rubro */}
-      <div className="relative z-10 max-w-6xl mx-auto py-4">
-        
-        <div className="text-center mb-6">
-          <span className="text-[11px] font-mono text-neutral-400 uppercase tracking-widest block">
-            Arquitectura Modular Dinámica
-          </span>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
-            Panel Central del Propietario
-          </h2>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-            Cada cuadro representa un módulo activo para tu negocio ({tenant.businessVertical}). Haz clic en cualquiera para inspeccionar o acceder.
-          </p>
-        </div>
+      {/* SVG de Circuitos & Cables Bézier que conectan los nodos satélites al nodo central */}
+      <svg 
+        className="absolute inset-0 w-full h-full pointer-events-none z-0 hidden md:block" 
+        viewBox="0 0 1000 700" 
+        preserveAspectRatio="none"
+      >
+        <defs>
+          <linearGradient id="grad-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#007aff" stopOpacity="0.1" />
+          </linearGradient>
+          <linearGradient id="grad-purple" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#a855f7" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#007aff" stopOpacity="0.1" />
+          </linearGradient>
+          <linearGradient id="grad-emerald" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#34d399" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#007aff" stopOpacity="0.1" />
+          </linearGradient>
+          <linearGradient id="grad-amber" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#007aff" stopOpacity="0.1" />
+          </linearGradient>
+        </defs>
 
-        {/* Grid adaptable de módulos seleccionados */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {displayKeys.map((key, index) => {
-            const meta = moduleMetaRegistry[key];
-            if (!meta) return null;
-            const isSelected = selectedNodeKey === key;
-            const isCore = key === "pos";
+        {satelliteKeys.slice(0, 4).map((_, idx) => {
+          const coord = orbitCoordinates[idx];
+          if (!coord) return null;
+          // Curvas suaves hacia el centro (500, 350)
+          const midX = (coord.x + 500) / 2;
+          const pathD = `M ${coord.x} ${coord.y} C ${midX} ${coord.y}, ${midX} 350, 500 350`;
+          const strokeColors = ["url(#grad-blue)", "url(#grad-purple)", "url(#grad-amber)", "url(#grad-emerald)"];
 
-            return (
-              <div
-                key={key}
-                onClick={() => setSelectedNodeKey(key)}
-                className={`p-5 rounded-3xl cursor-pointer transition-all duration-300 flex flex-col justify-between relative group ${
-                  isSelected
-                    ? "bg-white dark:bg-neutral-800/95 ring-2 ring-apple-blue shadow-2xl scale-[1.02]"
-                    : isCore
-                    ? "bg-white/95 dark:bg-neutral-800/90 hover:bg-white dark:hover:bg-neutral-800 border-2 border-apple-blue/30 shadow-apple hover:shadow-apple-hover"
-                    : "bg-white/80 dark:bg-neutral-800/70 hover:bg-white dark:hover:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700/80 shadow-apple hover:shadow-apple-hover hover:-translate-y-0.5"
-                }`}
-              >
-                {/* Port bioluminiscente superior */}
-                <div className="flex items-center justify-between pb-3 mb-2 border-b border-neutral-100 dark:border-neutral-800/80">
-                  <div className="flex items-center gap-2.5">
-                    <div className={`w-9 h-9 rounded-2xl flex items-center justify-center ${
-                      isCore 
-                        ? "bg-apple-blue text-white shadow-md shadow-apple-blue/30" 
-                        : "bg-neutral-100 dark:bg-neutral-700 text-apple-blue"
-                    }`}>
-                      {meta.icon}
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-mono text-neutral-400 block font-semibold">
-                        NODO {String(index + 1).padStart(2, "0")} • {meta.category}
-                      </span>
-                      <h3 className="text-sm font-bold text-neutral-900 dark:text-white tracking-tight">
-                        {meta.title}
-                      </h3>
-                    </div>
-                  </div>
+          return (
+            <g key={idx}>
+              <path
+                d={pathD}
+                fill="none"
+                stroke={strokeColors[idx % strokeColors.length]}
+                strokeWidth="1.5"
+                strokeDasharray="4 5"
+                className="opacity-70"
+              />
+              {/* Punto de enlace en el extremo satélite */}
+              <circle cx={coord.x} cy={coord.y} r="3" fill="#60a5fa" className="animate-ping opacity-75" />
+              <circle cx={coord.x} cy={coord.y} r="2.5" fill="#93c5fd" />
+            </g>
+          );
+        })}
+      </svg>
 
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                    isCore
-                      ? "bg-apple-blue/10 text-apple-blue"
-                      : meta.badge.includes("bajo")
-                      ? "bg-apple-red/10 text-apple-red"
-                      : "bg-apple-green/10 text-apple-green"
-                  }`}>
-                    {meta.badge}
-                  </span>
-                </div>
+      {/* LIENZO ESPACIAL CONSTELACIÓN: Posiciones orbitales flotantes */}
+      <div className="relative z-10 w-full h-[660px] flex items-center justify-center">
 
-                {/* Contenido principal del cuadro */}
-                <div className="py-3">
-                  <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-wider block">
-                    Métrica en Tiempo Real
-                  </span>
-                  <div className="text-2xl font-extrabold text-neutral-900 dark:text-white font-mono tracking-tight mt-0.5">
-                    {meta.statMain}
-                  </div>
-                  <span className="text-xs text-neutral-500 font-mono mt-1 block">
-                    {meta.statSub}
-                  </span>
-                  <p className="text-[11px] text-neutral-400 mt-2 line-clamp-2 leading-relaxed">
-                    {meta.desc}
-                  </p>
-                </div>
-
-                {/* Footer del cuadro con acción directa */}
-                <div className="pt-3 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between text-xs">
-                  <span className="text-neutral-400 text-[11px] flex items-center gap-1 font-mono">
-                    <span className="w-1.5 h-1.5 rounded-full bg-apple-green" />
-                    Enlace Activo
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onNavigate(meta.actionView);
-                    }}
-                    className="text-apple-blue hover:text-apple-blue-hover font-semibold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform"
-                  >
-                    <span>Entrar</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+        {/* ========================================================= */}
+        {/* NODO NUCLEAR CENTRAL: POS & VENTAS (Flotando en el centro) */}
+        {/* ========================================================= */}
+        <div 
+          onClick={() => setSelectedNodeKey("pos")}
+          className={`cursor-pointer transition-all duration-300 z-10 w-[330px] sm:w-[380px] rounded-3xl p-5 md:p-6 bg-[#16171d]/90 backdrop-blur-2xl border-2 ${
+            selectedNodeKey === "pos"
+              ? "border-apple-blue shadow-[0_0_40px_rgba(0,122,255,0.4)] scale-105"
+              : "border-apple-blue/40 hover:border-apple-blue shadow-[0_20px_50px_rgba(0,0,0,0.8)] hover:shadow-[0_0_35px_rgba(0,122,255,0.3)] hover:scale-[1.02]"
+          } animate-float-slow`}
+        >
+          {/* Header del Nodo Central */}
+          <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-neutral-800">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-apple-blue text-white flex items-center justify-center shadow-lg shadow-apple-blue/40">
+                <Receipt className="w-5 h-5" />
               </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Slide-over Inspector para el módulo seleccionado */}
-      {activeInspectorMeta && (
-        <aside className="fixed top-0 right-0 h-full w-80 sm:w-96 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-2xl p-6 border-l border-neutral-200 dark:border-neutral-800 shadow-2xl z-50 flex flex-col justify-between animate-fadeIn">
-          <div className="space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-neutral-200/80 dark:border-neutral-800">
-              <span className="text-[10px] font-mono font-bold text-apple-blue uppercase tracking-wider">
-                {activeInspectorMeta.category}
-              </span>
-              <button
-                type="button"
-                onClick={() => setSelectedNodeKey("pos")}
-                className="w-7 h-7 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 flex items-center justify-center text-neutral-500 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-bold text-neutral-900 dark:text-white">
-                {activeInspectorMeta.title}
-              </h3>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">
-                {activeInspectorMeta.desc}
-              </p>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-neutral-100/80 dark:bg-neutral-800/80 border border-neutral-200/60 dark:border-neutral-700/60">
-              <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">
-                Estado Actual
-              </span>
-              <div className="text-xl font-extrabold text-neutral-900 dark:text-white mt-0.5 font-mono">
-                {activeInspectorMeta.statMain}
-              </div>
-              <span className="text-xs text-neutral-500">{activeInspectorMeta.statSub}</span>
-            </div>
-
-            <div className="space-y-2">
-              <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">
-                Telemetría & Eventos de Módulo
-              </span>
-              <div className="p-3 rounded-2xl bg-neutral-100/90 dark:bg-neutral-900/90 font-mono text-[11px] text-neutral-700 dark:text-neutral-300 space-y-1.5 border border-neutral-200/80 dark:border-neutral-800">
-                {activeInspectorMeta.events.map((ev: string, idx: number) => (
-                  <div key={idx} className="leading-tight truncate">
-                    {ev}
-                  </div>
-                ))}
+              <div>
+                <span className="text-[10px] font-mono font-bold text-apple-blue tracking-wider block">
+                  NODO NUCLEAR 02
+                </span>
+                <h3 className="text-sm font-bold text-white tracking-tight">
+                  {posCoreMeta.title}
+                </h3>
               </div>
             </div>
+
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-apple-blue/15 text-apple-blue border border-apple-blue/30 font-mono">
+              CORE
+            </span>
           </div>
 
-          <div className="pt-4 border-t border-neutral-200/80 dark:border-neutral-800">
+          {/* Caja Interna de Métrica de Turno */}
+          <div className="p-4 rounded-2xl bg-[#0f1015]/90 border border-neutral-800/90 mb-3.5">
+            <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest block font-medium">
+              VENTAS HOY (TURNO)
+            </span>
+            <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight mt-1">
+              {posCoreMeta.statMain}
+            </div>
+            <span className="text-[11px] text-neutral-400 font-mono mt-1 block">
+              {posCoreMeta.statSub}
+            </span>
+          </div>
+
+          {/* Footer del Nodo Central */}
+          <div className="flex items-center justify-between text-xs pt-1">
+            <span className="text-neutral-400 font-mono text-[11px]">
+              Tickets: {sales.length + 48} transacciones
+            </span>
             <button
               type="button"
-              onClick={() => onNavigate(activeInspectorMeta.actionView)}
-              className="w-full py-2.5 px-4 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-semibold shadow-md shadow-apple-blue/25 transition-all flex items-center justify-center gap-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigate("pos");
+              }}
+              className="text-apple-blue hover:text-white font-semibold text-xs flex items-center gap-1 group transition-colors"
             >
-              <span>{activeInspectorMeta.actionLabel}</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <span>Abrir POS</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
             </button>
           </div>
-        </aside>
+        </div>
+
+        {/* ========================================================= */}
+        {/* NODOS SATÉLITE FLOTANTES EN ÓRBITA                         */}
+        {/* ========================================================= */}
+        {satelliteKeys.slice(0, 4).map((key, index) => {
+          const meta = moduleMetaRegistry[key];
+          if (!meta) return null;
+          const isSelected = selectedNodeKey === key;
+          const coord = orbitCoordinates[index];
+
+          return (
+            <div
+              key={key}
+              onClick={() => setSelectedNodeKey(key)}
+              className={`absolute ${coord.posClass} ${coord.animClass} cursor-pointer transition-all duration-300 w-[240px] sm:w-[270px] rounded-2xl p-4 bg-[#14151b]/85 backdrop-blur-xl border ${
+                isSelected
+                  ? "border-apple-blue ring-2 ring-apple-blue/50 shadow-[0_0_30px_rgba(0,122,255,0.35)] scale-105 z-30"
+                  : "border-neutral-800/90 hover:border-neutral-700 hover:scale-105 shadow-[0_16px_36px_rgba(0,0,0,0.6)] hover:shadow-[0_0_25px_rgba(255,255,255,0.08)] z-10"
+              }`}
+            >
+              {/* Header de Satélite */}
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-neutral-800/80">
+                <div className="flex items-center gap-2">
+                  <div className={`w-7 h-7 rounded-xl ${meta.colorScheme.bg}/20 ${meta.colorScheme.accent} flex items-center justify-center border border-white/5`}>
+                    {meta.icon}
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-mono text-neutral-400 font-semibold block leading-tight">
+                      NODO {meta.nodeNum}
+                    </span>
+                    <h4 className="text-xs font-bold text-white tracking-tight truncate max-w-[130px]">
+                      {meta.title}
+                    </h4>
+                  </div>
+                </div>
+
+                <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full font-mono ${
+                  meta.badge.includes("bajo")
+                    ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                    : "bg-neutral-800 text-neutral-300 border border-neutral-700"
+                }`}>
+                  {meta.badge}
+                </span>
+              </div>
+
+              {/* Métrica Principal */}
+              <div className="py-1">
+                <div className="text-lg font-bold text-white font-mono tracking-tight">
+                  {meta.statMain}
+                </div>
+                <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug line-clamp-1">
+                  {meta.statSub}
+                </p>
+              </div>
+
+              {/* Indicador de conexión activo */}
+              <div className="pt-2 mt-1 border-t border-neutral-800/60 flex items-center justify-between text-[10px] text-neutral-500">
+                <span className="flex items-center gap-1 font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Conectado
+                </span>
+                <span className="text-apple-blue font-semibold hover:underline">
+                  Inspeccionar →
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ========================================================= */}
+      {/* SLIDE-OVER INSPECTOR LATERAL (CERRADO POR DEFECTO)        */}
+      {/* SOLO SE MUESTRA AL HACER CLIC EN UN MÓDULO                 */}
+      {/* ========================================================= */}
+      {activeInspectorMeta && (
+        <>
+          {/* Backdrop semi-transparente para cerrar al hacer clic afuera */}
+          <div 
+            onClick={() => setSelectedNodeKey(null)}
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 transition-opacity animate-fadeIn"
+          />
+
+          <aside className="fixed top-0 right-0 h-full w-80 sm:w-96 bg-[#18191f]/95 backdrop-blur-2xl p-6 border-l border-neutral-800 shadow-2xl z-50 flex flex-col justify-between animate-fadeIn text-neutral-200">
+            <div className="space-y-5">
+              {/* Header del Inspector con botón X que SÍ cierra */}
+              <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+                <span className="text-[10px] font-mono font-bold text-apple-blue uppercase tracking-wider">
+                  {activeInspectorMeta.category}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedNodeKey(null)}
+                  className="w-8 h-8 rounded-full bg-neutral-800 hover:bg-neutral-700 flex items-center justify-center text-neutral-300 hover:text-white transition-colors"
+                  aria-label="Cerrar inspector"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className={`w-6 h-6 rounded-lg ${activeInspectorMeta.colorScheme.bg}/20 ${activeInspectorMeta.colorScheme.accent} flex items-center justify-center`}>
+                    {activeInspectorMeta.icon}
+                  </div>
+                  <h3 className="text-lg font-bold text-white tracking-tight">
+                    {activeInspectorMeta.title}
+                  </h3>
+                </div>
+                <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
+                  {activeInspectorMeta.desc}
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#0f1014] border border-neutral-800">
+                <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block font-mono">
+                  Métrica en Tiempo Real
+                </span>
+                <div className="text-2xl font-extrabold text-white mt-1 font-mono">
+                  {activeInspectorMeta.statMain}
+                </div>
+                <span className="text-xs text-neutral-400 mt-0.5 block">
+                  {activeInspectorMeta.statSub}
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block font-mono">
+                  Telemetría & Eventos de Módulo
+                </span>
+                <div className="p-3 rounded-2xl bg-[#0f1014] font-mono text-[11px] text-neutral-300 space-y-1.5 border border-neutral-800/90 max-h-48 overflow-y-auto">
+                  {activeInspectorMeta.events.map((ev: string, idx: number) => (
+                    <div key={idx} className="leading-tight truncate text-neutral-300">
+                      {ev}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-neutral-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedNodeKey(null);
+                  onNavigate(activeInspectorMeta.actionView);
+                }}
+                className="w-full py-3 px-4 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-semibold shadow-lg shadow-apple-blue/25 transition-all flex items-center justify-center gap-2"
+              >
+                <span>{activeInspectorMeta.actionLabel}</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </aside>
+        </>
       )}
     </div>
   );
