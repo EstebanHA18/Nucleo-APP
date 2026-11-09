@@ -1,4 +1,4 @@
-// Tipos principales para Núcleo ERP Modular (Sin fiados, 100% Contado/Tarjeta/Transferencia)
+// Tipos principales para Núcleo ERP Modular
 
 export type BusinessVertical = 
   | 'ferreteria'
@@ -17,8 +17,8 @@ export type ModuleKey =
   | 'pos'
   | 'inventory'
   | 'billing'
-  | 'customers'  // Directorio de clientes & CRM (Sin fiados)
-  | 'expenses'   // Gastos y caja chica
+  | 'customers'  // Directorio de clientes & CRM
+  | 'expenses'   // Gastos y compras
   | 'hr'         // RRHH & Nómina
   | 'production' // Producción & Recetas
   | 'reports';
@@ -66,13 +66,13 @@ export interface CartItem {
 export interface Customer {
   id: string;
   name: string;
-  businessName?: string; // Razón Social
+  businessName?: string;
   phone: string;
   email?: string;
-  taxId?: string;        // RUC / Cédula
+  taxId?: string;
   address?: string;
   city?: string;
-  totalPurchases: number; // Total acumulado comprado
+  totalPurchases: number;
   lastPurchaseDate?: string;
 }
 
@@ -90,6 +90,7 @@ export interface Sale {
   currency: 'NIO' | 'USD';
   exchangeRate: number;
   createdAt: string;
+  sellerName?: string;
   isOfflineSynced?: boolean;
 }
 
@@ -112,11 +113,27 @@ export interface OwnerProfile {
   pinCode?: string;
 }
 
+export type UserRole = 'owner' | 'cashier' | 'inventory_clerk' | 'supervisor' | 'custom';
+
+export interface AppUser {
+  id: string;
+  fullName: string;
+  username: string;
+  phone?: string;
+  email?: string;
+  pinCode: string;
+  role: UserRole;
+  roleLabel: string;
+  allowedModules: ModuleKey[];
+  active: boolean;
+  createdAt: string;
+}
+
 export interface TenantSettings {
   id: string;
   name: string;
   legalName?: string;
-  taxId?: string; // RUC
+  taxId?: string;
   phone?: string;
   email?: string;
   address?: string;

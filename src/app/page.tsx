@@ -8,16 +8,21 @@ import { SpatialCanvas } from "@/components/SpatialCanvas";
 import { POSTerminal } from "@/components/POSTerminal";
 import { InventoryManager } from "@/components/InventoryManager";
 import { CustomersManager } from "@/components/CustomersManager";
+import { UsersManager } from "@/components/UsersManager";
 import { SuperAdminTerminal } from "@/components/SuperAdminTerminal";
 import { DashboardBuilder } from "@/components/DashboardBuilder";
 import { CommandPalette } from "@/components/CommandPalette";
-import { TenantSettings, Product, Customer, Sale } from "@/types";
+import { TenantSettings, Product, Customer, Sale, AppUser } from "@/types";
 import { 
   getStoredTenant, 
   saveStoredTenant, 
   getStoredProducts, 
   getStoredCustomers, 
-  getStoredSales 
+  getStoredSales,
+  getStoredUsers,
+  saveStoredUsers,
+  getCurrentUser,
+  saveCurrentUser
 } from "@/lib/offlineStore";
 
 export default function Home() {
@@ -28,10 +33,12 @@ export default function Home() {
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
 
-  // App data states
+  // App data states (Local offline first)
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
 
   // Initialize
   useEffect(() => {
@@ -44,16 +51,29 @@ export default function Home() {
       window.addEventListener("offline", handleOffline);
 
       // Load tenant
-      const stored = getStoredTenant();
-      if (!stored || !stored.isSetupCompleted) {
+      const storedTenant = getStoredTenant();
+      if (!storedTenant || !storedTenant.isSetupCompleted) {
         setShowWizard(true);
       } else {
-        setTenant(stored);
+        setTenant(storedTenant);
       }
 
       setProducts(getStoredProducts());
       setCustomers(getStoredCustomers());
       setSales(getStoredSales());
+
+      const loadedUsers = getStoredUsers(storedTenant);
+      setUsers(loadedUsers);
+
+      const activeUser = getCurrentUser(loadedUsers);
+      setCurrentUser(activeUser);
+
+      // Si el usuario actual no es dueño, llevarlo a su vista permitida
+      if (activeUser.role === "cashier") {
+        setActiveView("pos");
+      } else if (activeUser.role === "inventory_clerk") {
+        setActiveView("inventory");
+      }
 
       return () => {
         window.removeEventListener("online", handleOnline);
@@ -77,6 +97,14 @@ export default function Home() {
   const handleWizardComplete = (completedTenant: TenantSettings) => {
     setTenant(completedTenant);
     setShowWizard(false);
+    
+    // Actualizar usuarios con el nuevo nombre del dueño
+    const updatedUsers = getStoredUsers(completedTenant);
+    setUsers(updatedUsers);
+    const owner = updatedUsers.find((u) => u.role === "owner") || updatedUsers[0];
+    setCurrentUser(owner);
+    saveCurrentUser(owner);
+
     setActiveView("spatial");
   };
 
@@ -95,6 +123,31 @@ export default function Home() {
     saveStoredTenant(updated);
   };
 
+  const handleSwitchUser = (user: AppUser) => {
+    setCurrentUser(user);
+    saveCurrentUser(user);
+
+    // Redirigir según el rol del usuario
+    if (user.role === "cashier") {
+      setActiveView("pos");
+    } else if (user.role === "inventory_clerk") {
+      setActiveView("inventory");
+    } else if (user.role === "owner") {
+      setActiveView("spatial");
+    } else {
+      if (user.allowedModules.length > 0) {
+        setActiveView(user.allowedModules[0]);
+      }
+    }
+  };
+
+  const handleReturnToOwner = () => {
+    const owner = users.find((u) => u.role === "owner") || users[0];
+    if (owner) {
+      handleSwitchUser(owner);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#f5f5f7] dark:bg-[#0d0e11] text-neutral-900 dark:text-neutral-100 flex flex-col font-sans transition-colors duration-200">
       
@@ -104,7 +157,7 @@ export default function Home() {
       )}
 
       {/* Main App Layout */}
-      {tenant && (
+      {tenant && currentUser && (
         <>
           {/* Top Bar */}
           <Header
@@ -114,20 +167,45 @@ export default function Home() {
             darkMode={darkMode}
             setDarkMode={setDarkMode}
             isOnline={isOnline}
+            currentUser={currentUser}
+            users={users}
+            onSwitchUser={handleSwitchUser}
             onOpenCommandPalette={() => setShowCommandPalette(true)}
             onOpenSettingsWizard={() => setShowWizard(true)}
           />
 
+          {/* Banner de Modo Empleado restringido si no es dueño */}
+          {currentUser.role !== "owner" && (
+            <div className="fixed top-14 inset-x-0 z-30 bg-apple-blue text-white px-4 py-1.5 text-xs text-center font-medium shadow-sm flex items-center justify-center gap-3">
+              <span>
+                Sesión de <strong>{currentUser.roleLabel}</strong>: Acceso restringido a <strong>{currentUser.role === "cashier" ? "Caja & Ventas POS" : "Inventario"}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={handleReturnToOwner}
+                className="px-2.5 py-0.5 rounded-full bg-white text-apple-blue font-bold text-[11px] hover:bg-neutral-100 transition-colors shadow-2xs"
+              >
+                Volver a Cuenta de Dueño
+              </button>
+            </div>
+          )}
+
           {/* Main Content Area */}
-          <main className="flex-1 max-w-7xl mx-auto w-full px-4 md:px-8 pt-20 pb-28">
-            {activeView === "spatial" && (
+          <main className={`flex-1 max-w-7xl mx-auto w-full px-4 md:px-8 pb-28 ${currentUser.role !== "owner" ? "pt-24" : "pt-20"}`}>
+            
+            {/* 1. Red Espacial (Cada cuadro muestra dinámicamente un módulo activo del rubro) */}
+            {activeView === "spatial" && currentUser.role === "owner" && (
               <SpatialCanvas
                 tenant={tenant}
                 products={products}
+                customers={customers}
+                sales={sales}
                 onNavigate={(v) => setActiveView(v)}
+                onOpenSettingsWizard={() => setShowWizard(true)}
               />
             )}
 
+            {/* 2. Drag & Drop Dashboard */}
             {activeView === "dashboard" && (
               <DashboardBuilder
                 tenant={tenant}
@@ -138,6 +216,7 @@ export default function Home() {
               />
             )}
 
+            {/* 3. POS Terminal (Accesible para Dueño y Cajero) */}
             {activeView === "pos" && (
               <POSTerminal
                 tenant={tenant}
@@ -147,6 +226,7 @@ export default function Home() {
               />
             )}
 
+            {/* 4. Inventario & Kardex (Accesible para Dueño y Bodeguero) */}
             {activeView === "inventory" && (
               <InventoryManager
                 tenant={tenant}
@@ -155,6 +235,7 @@ export default function Home() {
               />
             )}
 
+            {/* 5. Directorio de Clientes */}
             {activeView === "customers" && (
               <CustomersManager
                 tenant={tenant}
@@ -163,7 +244,19 @@ export default function Home() {
               />
             )}
 
-            {activeView === "terminal" && (
+            {/* 6. Apartado del Dueño: Usuarios & Roles (Caja e Inventario) */}
+            {activeView === "users" && currentUser.role === "owner" && (
+              <UsersManager
+                tenant={tenant}
+                users={users}
+                setUsers={setUsers}
+                currentUser={currentUser}
+                onSwitchUser={handleSwitchUser}
+              />
+            )}
+
+            {/* 7. SuperAdmin Terminal (God Mode) */}
+            {activeView === "terminal" && currentUser.role === "owner" && (
               <SuperAdminTerminal
                 currentTenant={tenant}
                 onUpdateTenantSettings={handleUpdateTenantSettings}
@@ -176,7 +269,9 @@ export default function Home() {
             tenant={tenant}
             activeView={activeView}
             setActiveView={setActiveView}
+            currentUser={currentUser}
             onOpenSettingsWizard={() => setShowWizard(true)}
+            onReturnToOwner={handleReturnToOwner}
           />
 
           {/* Command Palette (⌘K) */}
@@ -192,9 +287,11 @@ export default function Home() {
           <footer className="w-full py-4 text-center border-t border-neutral-200/80 dark:border-neutral-800/80 text-[11px] text-neutral-400 font-mono">
             <span>NÚCLEO ERP // v3.4.1</span>
             <span className="mx-2">•</span>
-            <span>Tenant: {tenant.name}</span>
+            <span>Empresa: {tenant.name}</span>
             <span className="mx-2">•</span>
-            <span>{isOnline ? "Supabase Cloud Conectado" : "Modo Offline Activo"}</span>
+            <span>Usuario: {currentUser.fullName} ({currentUser.roleLabel})</span>
+            <span className="mx-2">•</span>
+            <span>{isOnline ? "Modo Local Listo (Supabase opcional)" : "Modo Offline Activo"}</span>
           </footer>
         </>
       )}

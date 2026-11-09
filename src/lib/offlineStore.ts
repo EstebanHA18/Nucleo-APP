@@ -1,4 +1,4 @@
-import { Product, Customer, Sale, TenantSettings } from "@/types";
+import { Product, Customer, Sale, TenantSettings, AppUser } from "@/types";
 import { INITIAL_PRODUCTS, INITIAL_CUSTOMERS } from "./constants";
 
 const STORAGE_KEYS = {
@@ -6,6 +6,8 @@ const STORAGE_KEYS = {
   PRODUCTS: "nucleo_products",
   CUSTOMERS: "nucleo_customers",
   SALES: "nucleo_sales",
+  USERS: "nucleo_users",
+  CURRENT_USER: "nucleo_current_user",
   OFFLINE_QUEUE: "nucleo_offline_queue",
 };
 
@@ -74,6 +76,116 @@ export const getStoredSales = (): Sale[] => {
   }
 };
 
+export const getStoredUsers = (tenant?: TenantSettings | null): AppUser[] => {
+  if (typeof window === "undefined") return [];
+  const raw = localStorage.getItem(STORAGE_KEYS.USERS);
+  if (raw) {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      // fallback
+    }
+  }
+
+  // Generar usuarios iniciales
+  const ownerName = tenant?.owner?.fullName || "Dueño General";
+  const initialUsers: AppUser[] = [
+    {
+      id: "usr-owner",
+      fullName: ownerName,
+      username: "admin",
+      email: tenant?.owner?.email || "admin@nucleo.ni",
+      pinCode: tenant?.owner?.pinCode || "1234",
+      role: "owner",
+      roleLabel: "Propietario / Dueño",
+      allowedModules: tenant?.activeModules || ["pos", "inventory", "billing", "customers", "expenses"],
+      active: true,
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: "usr-cashier",
+      fullName: "Juan Carlos Cajero",
+      username: "caja1",
+      phone: "+505 8812-4401",
+      pinCode: "0000",
+      role: "cashier",
+      roleLabel: "Cajero de Mostrador",
+      allowedModules: ["pos"],
+      active: true,
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: "usr-inventory",
+      fullName: "Pedro Morales Bodega",
+      username: "bodega1",
+      phone: "+505 8731-9922",
+      pinCode: "1111",
+      role: "inventory_clerk",
+      roleLabel: "Encargado de Inventario",
+      allowedModules: ["inventory"],
+      active: true,
+      createdAt: new Date().toISOString(),
+    },
+  ];
+
+  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(initialUsers));
+  return initialUsers;
+};
+
+export const saveStoredUsers = (users: AppUser[]) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+};
+
+export const getCurrentUser = (users?: AppUser[]): AppUser => {
+  if (typeof window === "undefined") {
+    return {
+      id: "usr-owner",
+      fullName: "Propietario",
+      username: "admin",
+      pinCode: "1234",
+      role: "owner",
+      roleLabel: "Dueño",
+      allowedModules: ["pos", "inventory", "billing", "customers"],
+      active: true,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  const raw = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+  if (raw) {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      // fallback
+    }
+  }
+
+  const allUsers = users || getStoredUsers();
+  const owner = allUsers.find((u) => u.role === "owner") || allUsers[0];
+  if (owner) {
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(owner));
+    return owner;
+  }
+
+  return {
+    id: "usr-owner",
+    fullName: "Propietario",
+    username: "admin",
+    pinCode: "1234",
+    role: "owner",
+    roleLabel: "Dueño",
+    allowedModules: ["pos", "inventory", "billing", "customers"],
+    active: true,
+    createdAt: new Date().toISOString(),
+  };
+};
+
+export const saveCurrentUser = (user: AppUser) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+};
+
 export const recordSaleLocally = (sale: Sale): { updatedProducts: Product[]; updatedCustomers: Customer[] } => {
   const sales = getStoredSales();
   sales.unshift(sale);
@@ -108,18 +220,6 @@ export const recordSaleLocally = (sale: Sale): { updatedProducts: Product[]; upd
       return c;
     });
     saveStoredCustomers(updatedCustomers);
-  }
-
-  // 3. Cola offline
-  if (typeof window !== "undefined" && !navigator.onLine) {
-    const queueRaw = localStorage.getItem(STORAGE_KEYS.OFFLINE_QUEUE) || "[]";
-    try {
-      const queue = JSON.parse(queueRaw);
-      queue.push(sale);
-      localStorage.setItem(STORAGE_KEYS.OFFLINE_QUEUE, JSON.stringify(queue));
-    } catch {
-      // Ignorar
-    }
   }
 
   return { updatedProducts, updatedCustomers };
