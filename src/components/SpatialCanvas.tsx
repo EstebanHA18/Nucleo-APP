@@ -35,7 +35,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
   onNavigate,
   onOpenSettingsWizard,
 }) => {
-  // POR DEFECTO CERRADO (null), solo se abre al hacer clic en un módulo
+  // Por defecto cerrado (null), solo se abre al hacer clic en un módulo
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
 
   // Métricas dinámicas calculadas
@@ -54,8 +54,8 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
     colorScheme: {
       accent: string;
       bg: string;
-      glow: string;
       lineColor: string;
+      pulseColor: string;
     };
     statMain: string;
     statSub: string;
@@ -73,8 +73,8 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
       colorScheme: {
         accent: "text-apple-blue",
         bg: "bg-apple-blue",
-        glow: "rgba(0, 122, 255, 0.3)",
         lineColor: "#007aff",
+        pulseColor: "#007aff",
       },
       statMain: `C$ ${(totalSalesToday * (tenant.currency === "NIO" ? 1 : tenant.exchangeRate)).toLocaleString("es-NI", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       statSub: `≈ $${(totalSalesToday / tenant.exchangeRate).toFixed(2)} USD (TC ${tenant.exchangeRate.toFixed(2)})`,
@@ -94,10 +94,10 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
       badge: "Activo",
       icon: <Users className="w-4 h-4" />,
       colorScheme: {
-        accent: "text-sky-400",
+        accent: "text-sky-500 dark:text-sky-400",
         bg: "bg-sky-500",
-        glow: "rgba(56, 189, 248, 0.25)",
-        lineColor: "#38bdf8",
+        lineColor: "#0284c7",
+        pulseColor: "#38bdf8",
       },
       statMain: `${customers.length}`,
       statSub: "Clientes registrados para facturación",
@@ -117,10 +117,10 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
       badge: lowStockProducts.length > 0 ? `⚠️ ${lowStockProducts.length} bajo` : "Óptimo",
       icon: <Package className="w-4 h-4" />,
       colorScheme: {
-        accent: "text-purple-400",
+        accent: "text-purple-600 dark:text-purple-400",
         bg: "bg-purple-500",
-        glow: "rgba(168, 85, 247, 0.25)",
-        lineColor: "#a855f7",
+        lineColor: "#9333ea",
+        pulseColor: "#c084fc",
       },
       statMain: `${products.length} SKUs`,
       statSub: `${totalStockCount} unidades en bodega`,
@@ -140,10 +140,10 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
       badge: "Conciliado",
       icon: <FileText className="w-4 h-4" />,
       colorScheme: {
-        accent: "text-emerald-400",
+        accent: "text-emerald-600 dark:text-emerald-400",
         bg: "bg-emerald-500",
-        glow: "rgba(52, 211, 153, 0.25)",
-        lineColor: "#34d399",
+        lineColor: "#059669",
+        pulseColor: "#34d399",
       },
       statMain: `$148,920.00`,
       statSub: "Flujo de caja y cuentas bancarias",
@@ -163,10 +163,10 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
       badge: "Controlado",
       icon: <Wallet className="w-4 h-4" />,
       colorScheme: {
-        accent: "text-amber-400",
+        accent: "text-amber-600 dark:text-amber-400",
         bg: "bg-amber-500",
-        glow: "rgba(251, 191, 36, 0.25)",
-        lineColor: "#fbbf24",
+        lineColor: "#d97706",
+        pulseColor: "#fbbf24",
       },
       statMain: "C$ 14,250.00",
       statSub: "Egresos y compras operativas",
@@ -186,10 +186,10 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
       badge: "Al Día",
       icon: <UserCheck className="w-4 h-4" />,
       colorScheme: {
-        accent: "text-teal-400",
+        accent: "text-teal-600 dark:text-teal-400",
         bg: "bg-teal-500",
-        glow: "rgba(45, 212, 191, 0.25)",
-        lineColor: "#2dd4bf",
+        lineColor: "#0d9488",
+        pulseColor: "#2dd4bf",
       },
       statMain: "8 Colaboradores",
       statSub: "Turnos de cajeros y bodegueros",
@@ -209,10 +209,10 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
       badge: "Recetas ON",
       icon: <Layers className="w-4 h-4" />,
       colorScheme: {
-        accent: "text-rose-400",
+        accent: "text-rose-600 dark:text-rose-400",
         bg: "bg-rose-500",
-        glow: "rgba(251, 113, 133, 0.25)",
-        lineColor: "#fb7185",
+        lineColor: "#e11d48",
+        pulseColor: "#fb7185",
       },
       statMain: "24 Fórmulas",
       statSub: "Descuento automático de insumos",
@@ -232,10 +232,10 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
       badge: "10 Activas",
       icon: <Cpu className="w-4 h-4" />,
       colorScheme: {
-        accent: "text-cyan-400",
+        accent: "text-cyan-600 dark:text-cyan-400",
         bg: "bg-cyan-500",
-        glow: "rgba(34, 211, 238, 0.25)",
-        lineColor: "#22d3ee",
+        lineColor: "#0891b2",
+        pulseColor: "#22d3ee",
       },
       statMain: "100% Éxito",
       statSub: "Reórdenes y avisos automáticos",
@@ -260,55 +260,82 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
     ? activeSatelliteKeys 
     : (["customers", "inventory", "reports", "billing"] as ModuleKey[]);
 
-  // Asignación de posiciones de órbita espacial alrededor del centro
-  // Cuadrantes: 0: Top-Left, 1: Top-Right, 2: Bottom-Left, 3: Bottom-Right
+  // Posiciones orbitales para el diseño espacial de constelación
+  // Coordenadas Bézier SVG relativas a viewBox="0 0 1000 700":
+  // Centro Nuclear POS: (500, 350)
   const orbitCoordinates = [
-    { posClass: "top-10 md:top-14 left-4 md:left-12", animClass: "animate-float-slow", x: 230, y: 160 },
-    { posClass: "top-10 md:top-14 right-4 md:right-12", animClass: "animate-float-reverse", x: 770, y: 160 },
-    { posClass: "bottom-10 md:bottom-14 left-4 md:left-12", animClass: "animate-float-delayed", x: 230, y: 540 },
-    { posClass: "bottom-10 md:bottom-14 right-4 md:right-12", animClass: "animate-float-slow", x: 770, y: 540 },
-    { posClass: "top-1/2 -translate-y-1/2 left-2 md:left-6", animClass: "animate-float-reverse", x: 140, y: 350 },
-    { posClass: "top-1/2 -translate-y-1/2 right-2 md:right-6", animClass: "animate-float-delayed", x: 860, y: 350 },
+    { 
+      posClass: "top-10 md:top-14 left-4 md:left-12", 
+      animClass: "animate-float-slow", 
+      x: 200, 
+      y: 150,
+      pathForward: "M 200 150 C 350 150, 360 350, 500 350",
+      pathBackward: "M 500 350 C 360 350, 350 150, 200 150"
+    },
+    { 
+      posClass: "top-10 md:top-14 right-4 md:right-12", 
+      animClass: "animate-float-reverse", 
+      x: 800, 
+      y: 150,
+      pathForward: "M 800 150 C 650 150, 640 350, 500 350",
+      pathBackward: "M 500 350 C 640 350, 650 150, 800 150"
+    },
+    { 
+      posClass: "bottom-10 md:bottom-14 left-4 md:left-12", 
+      animClass: "animate-float-delayed", 
+      x: 200, 
+      y: 550,
+      pathForward: "M 200 550 C 350 550, 360 350, 500 350",
+      pathBackward: "M 500 350 C 360 350, 350 550, 200 550"
+    },
+    { 
+      posClass: "bottom-10 md:bottom-14 right-4 md:right-12", 
+      animClass: "animate-float-slow", 
+      x: 800, 
+      y: 550,
+      pathForward: "M 800 550 C 650 550, 640 350, 500 350",
+      pathBackward: "M 500 350 C 640 350, 650 550, 800 550"
+    },
   ];
 
   const posCoreMeta = moduleMetaRegistry["pos"];
   const activeInspectorMeta = selectedNodeKey ? moduleMetaRegistry[selectedNodeKey] : null;
 
   return (
-    <div className="relative w-full min-h-[760px] md:h-[780px] rounded-3xl bg-[#0d0e12] border border-neutral-800/80 overflow-hidden select-none p-4 md:p-6 transition-all shadow-2xl">
+    <div className="relative w-full min-h-[760px] md:h-[780px] rounded-3xl bg-neutral-100/90 dark:bg-[#0d0e12] border border-neutral-300/80 dark:border-neutral-800/80 overflow-hidden select-none p-4 md:p-6 transition-colors duration-300 shadow-xl dark:shadow-2xl">
       
-      {/* Fondo de constelación con rejilla radial fina */}
+      {/* Fondo de constelación con rejilla radial fina (adaptable a Light y Dark) */}
       <div 
-        className="absolute inset-0 pointer-events-none opacity-25"
+        className="absolute inset-0 pointer-events-none opacity-30 dark:opacity-25"
         style={{
-          backgroundImage: "radial-gradient(#4b5563 1px, transparent 1px)",
+          backgroundImage: "radial-gradient(#6b7280 1px, transparent 1px)",
           backgroundSize: "28px 28px",
         }}
       />
 
       {/* Bioluminiscencia de fondo */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] h-[480px] bg-apple-blue/10 rounded-full blur-[120px] pointer-events-none animate-pulse-glow" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] h-[480px] bg-apple-blue/10 dark:bg-apple-blue/15 rounded-full blur-[120px] pointer-events-none animate-pulse-glow" />
       <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-purple-500/10 rounded-full blur-[90px] pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-emerald-500/10 rounded-full blur-[90px] pointer-events-none" />
 
-      {/* Barra superior de telemetría tipo Starlink / Apple UI */}
+      {/* Barra superior de telemetría tipo Apple UI (Light & Dark) */}
       <div className="relative z-20 flex flex-wrap items-center justify-between gap-3 px-2 mb-2">
-        <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-neutral-900/90 backdrop-blur-md border border-neutral-800 shadow-sm text-xs">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="font-semibold text-neutral-200">
+        <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-neutral-200 dark:border-neutral-800 shadow-sm text-xs">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
+          <span className="font-semibold text-neutral-800 dark:text-neutral-200">
             Topología: Constelación {tenant.name}
           </span>
-          <span className="text-neutral-600">/</span>
-          <span className="text-neutral-400 font-mono">
+          <span className="text-neutral-300 dark:text-neutral-600">/</span>
+          <span className="text-neutral-500 dark:text-neutral-400 font-mono">
             {satelliteKeys.length + 1} Módulos Activos
           </span>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 text-[11px] font-mono text-neutral-400 px-3 py-1 rounded-full bg-neutral-900/80 border border-neutral-800/80">
+          <div className="hidden sm:flex items-center gap-2 text-[11px] font-mono text-neutral-500 dark:text-neutral-400 px-3 py-1 rounded-full bg-white/80 dark:bg-neutral-900/80 border border-neutral-200/90 dark:border-neutral-800/80 shadow-2xs">
             <span>Latencia: 12ms</span>
-            <span className="text-neutral-600">•</span>
-            <span className="text-emerald-400 flex items-center gap-1">
+            <span className="text-neutral-300 dark:text-neutral-600">•</span>
+            <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
               <Activity className="w-3 h-3 inline" />
               Sync: Local ⇄ Nube
             </span>
@@ -317,7 +344,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
           <button
             type="button"
             onClick={onOpenSettingsWizard}
-            className="px-3 py-1.5 rounded-full bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-xs font-medium transition-all flex items-center gap-1.5 border border-neutral-700/80 hover:border-neutral-600"
+            className="px-3.5 py-1.5 rounded-full bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-medium transition-all flex items-center gap-1.5 border border-neutral-200 dark:border-neutral-700/80 shadow-2xs"
           >
             <SlidersHorizontal className="w-3.5 h-3.5 text-apple-blue" />
             <span className="hidden md:inline">Configurar</span>
@@ -326,7 +353,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
           <button
             type="button"
             onClick={() => onNavigate("pos")}
-            className="px-4 py-1.5 rounded-full bg-apple-blue text-white text-xs font-semibold hover:bg-apple-blue-hover transition-all flex items-center gap-1.5 shadow-md shadow-apple-blue/20"
+            className="px-4 py-1.5 rounded-full bg-apple-blue text-white text-xs font-semibold hover:bg-apple-blue-hover transition-all flex items-center gap-1.5 shadow-sm shadow-apple-blue/20"
           >
             <span>Ir al POS</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -334,52 +361,75 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
         </div>
       </div>
 
-      {/* SVG de Circuitos & Cables Bézier que conectan los nodos satélites al nodo central */}
+      {/* ========================================================================= */}
+      {/* SVG DE CIRCUITOS CON PELOTITAS VIAJERAS ACTIVAS ENTRE CADA MÓDULO Y NODO  */}
+      {/* ========================================================================= */}
       <svg 
         className="absolute inset-0 w-full h-full pointer-events-none z-0 hidden md:block" 
         viewBox="0 0 1000 700" 
         preserveAspectRatio="none"
       >
         <defs>
-          <linearGradient id="grad-blue" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#007aff" stopOpacity="0.1" />
-          </linearGradient>
-          <linearGradient id="grad-purple" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#a855f7" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#007aff" stopOpacity="0.1" />
-          </linearGradient>
-          <linearGradient id="grad-emerald" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#34d399" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#007aff" stopOpacity="0.1" />
-          </linearGradient>
-          <linearGradient id="grad-amber" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#007aff" stopOpacity="0.1" />
-          </linearGradient>
+          <filter id="glow-pulse" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
 
-        {satelliteKeys.slice(0, 4).map((_, idx) => {
+        {satelliteKeys.slice(0, 4).map((key, idx) => {
+          const meta = moduleMetaRegistry[key];
           const coord = orbitCoordinates[idx];
-          if (!coord) return null;
-          // Curvas suaves hacia el centro (500, 350)
-          const midX = (coord.x + 500) / 2;
-          const pathD = `M ${coord.x} ${coord.y} C ${midX} ${coord.y}, ${midX} 350, 500 350`;
-          const strokeColors = ["url(#grad-blue)", "url(#grad-purple)", "url(#grad-amber)", "url(#grad-emerald)"];
+          if (!coord || !meta) return null;
+
+          const wireColor = meta.colorScheme.lineColor;
+          const pulseColor = meta.colorScheme.pulseColor;
+          const animDuration = `${2.4 + idx * 0.4}s`;
+          const reverseDuration = `${2.8 + idx * 0.3}s`;
 
           return (
             <g key={idx}>
+              {/* Cable Bézier punteado */}
               <path
-                d={pathD}
+                d={coord.pathForward}
                 fill="none"
-                stroke={strokeColors[idx % strokeColors.length]}
-                strokeWidth="1.5"
+                stroke={wireColor}
+                strokeWidth="1.75"
                 strokeDasharray="4 5"
-                className="opacity-70"
+                className="opacity-40 dark:opacity-60"
               />
-              {/* Punto de enlace en el extremo satélite */}
-              <circle cx={coord.x} cy={coord.y} r="3" fill="#60a5fa" className="animate-ping opacity-75" />
-              <circle cx={coord.x} cy={coord.y} r="2.5" fill="#93c5fd" />
+
+              {/* Punto terminal de anclaje */}
+              <circle cx={coord.x} cy={coord.y} r="2.5" fill={pulseColor} />
+
+              {/* 1. PELOTITA PRINCIPAL QUE CORRE DEL MÓDULO SATÉLITE HACIA EL POS */}
+              <circle r="4" fill={pulseColor} filter="url(#glow-pulse)">
+                <animateMotion
+                  dur={animDuration}
+                  repeatCount="indefinite"
+                  path={coord.pathForward}
+                />
+              </circle>
+              {/* Halo difuso que acompaña a la pelotita principal */}
+              <circle r="7" fill={pulseColor} opacity="0.35">
+                <animateMotion
+                  dur={animDuration}
+                  repeatCount="indefinite"
+                  path={coord.pathForward}
+                />
+              </circle>
+
+              {/* 2. PELOTITA DE RETORNO QUE CORRE DEL NÚCLEO POS HACIA EL MÓDULO */}
+              <circle r="2.5" fill="#38bdf8" opacity="0.85">
+                <animateMotion
+                  dur={reverseDuration}
+                  begin={`${1.2 + idx * 0.2}s`}
+                  repeatCount="indefinite"
+                  path={coord.pathBackward}
+                />
+              </circle>
             </g>
           );
         })}
@@ -393,23 +443,23 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
         {/* ========================================================= */}
         <div 
           onClick={() => setSelectedNodeKey("pos")}
-          className={`cursor-pointer transition-all duration-300 z-10 w-[330px] sm:w-[380px] rounded-3xl p-5 md:p-6 bg-[#16171d]/90 backdrop-blur-2xl border-2 ${
+          className={`cursor-pointer transition-all duration-300 z-10 w-[330px] sm:w-[380px] rounded-3xl p-5 md:p-6 bg-white/95 dark:bg-[#16171d]/90 backdrop-blur-2xl border-2 ${
             selectedNodeKey === "pos"
-              ? "border-apple-blue shadow-[0_0_40px_rgba(0,122,255,0.4)] scale-105"
-              : "border-apple-blue/40 hover:border-apple-blue shadow-[0_20px_50px_rgba(0,0,0,0.8)] hover:shadow-[0_0_35px_rgba(0,122,255,0.3)] hover:scale-[1.02]"
+              ? "border-apple-blue ring-4 ring-apple-blue/20 dark:ring-apple-blue/30 shadow-[0_0_40px_rgba(0,122,255,0.3)] scale-105"
+              : "border-apple-blue/40 hover:border-apple-blue shadow-[0_12px_36px_rgba(0,0,0,0.08)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.8)] hover:shadow-[0_0_35px_rgba(0,122,255,0.25)] hover:scale-[1.02]"
           } animate-float-slow`}
         >
           {/* Header del Nodo Central */}
-          <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-neutral-800">
+          <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-neutral-100 dark:border-neutral-800">
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-2xl bg-apple-blue text-white flex items-center justify-center shadow-lg shadow-apple-blue/40">
+              <div className="w-10 h-10 rounded-2xl bg-apple-blue text-white flex items-center justify-center shadow-lg shadow-apple-blue/30">
                 <Receipt className="w-5 h-5" />
               </div>
               <div>
                 <span className="text-[10px] font-mono font-bold text-apple-blue tracking-wider block">
                   NODO NUCLEAR 02
                 </span>
-                <h3 className="text-sm font-bold text-white tracking-tight">
+                <h3 className="text-sm font-bold text-neutral-900 dark:text-white tracking-tight">
                   {posCoreMeta.title}
                 </h3>
               </div>
@@ -421,21 +471,21 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
           </div>
 
           {/* Caja Interna de Métrica de Turno */}
-          <div className="p-4 rounded-2xl bg-[#0f1015]/90 border border-neutral-800/90 mb-3.5">
-            <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest block font-medium">
+          <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-[#0f1015]/90 border border-neutral-200/80 dark:border-neutral-800/90 mb-3.5">
+            <span className="text-[10px] font-mono text-neutral-500 dark:text-neutral-400 uppercase tracking-widest block font-medium">
               VENTAS HOY (TURNO)
             </span>
-            <div className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight mt-1">
+            <div className="text-2xl sm:text-3xl font-extrabold text-neutral-900 dark:text-white font-mono tracking-tight mt-1">
               {posCoreMeta.statMain}
             </div>
-            <span className="text-[11px] text-neutral-400 font-mono mt-1 block">
+            <span className="text-[11px] text-neutral-600 dark:text-neutral-400 font-mono mt-1 block">
               {posCoreMeta.statSub}
             </span>
           </div>
 
           {/* Footer del Nodo Central */}
           <div className="flex items-center justify-between text-xs pt-1">
-            <span className="text-neutral-400 font-mono text-[11px]">
+            <span className="text-neutral-500 dark:text-neutral-400 font-mono text-[11px]">
               Tickets: {sales.length + 48} transacciones
             </span>
             <button
@@ -444,7 +494,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
                 e.stopPropagation();
                 onNavigate("pos");
               }}
-              className="text-apple-blue hover:text-white font-semibold text-xs flex items-center gap-1 group transition-colors"
+              className="text-apple-blue hover:text-apple-blue-hover font-semibold text-xs flex items-center gap-1 group transition-colors"
             >
               <span>Abrir POS</span>
               <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
@@ -465,23 +515,23 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
             <div
               key={key}
               onClick={() => setSelectedNodeKey(key)}
-              className={`absolute ${coord.posClass} ${coord.animClass} cursor-pointer transition-all duration-300 w-[240px] sm:w-[270px] rounded-2xl p-4 bg-[#14151b]/85 backdrop-blur-xl border ${
+              className={`absolute ${coord.posClass} ${coord.animClass} cursor-pointer transition-all duration-300 w-[240px] sm:w-[270px] rounded-2xl p-4 bg-white/90 dark:bg-[#14151b]/85 backdrop-blur-xl border ${
                 isSelected
-                  ? "border-apple-blue ring-2 ring-apple-blue/50 shadow-[0_0_30px_rgba(0,122,255,0.35)] scale-105 z-30"
-                  : "border-neutral-800/90 hover:border-neutral-700 hover:scale-105 shadow-[0_16px_36px_rgba(0,0,0,0.6)] hover:shadow-[0_0_25px_rgba(255,255,255,0.08)] z-10"
+                  ? "border-apple-blue ring-2 ring-apple-blue/40 shadow-[0_0_25px_rgba(0,122,255,0.25)] scale-105 z-30"
+                  : "border-neutral-200 dark:border-neutral-800/90 hover:border-apple-blue/50 dark:hover:border-neutral-700 hover:scale-105 shadow-[0_8px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.6)] z-10"
               }`}
             >
               {/* Header de Satélite */}
-              <div className="flex items-center justify-between pb-2 mb-2 border-b border-neutral-800/80">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-neutral-100 dark:border-neutral-800/80">
                 <div className="flex items-center gap-2">
-                  <div className={`w-7 h-7 rounded-xl ${meta.colorScheme.bg}/20 ${meta.colorScheme.accent} flex items-center justify-center border border-white/5`}>
+                  <div className={`w-7 h-7 rounded-xl ${meta.colorScheme.bg}/15 dark:${meta.colorScheme.bg}/20 ${meta.colorScheme.accent} flex items-center justify-center border border-black/5 dark:border-white/5`}>
                     {meta.icon}
                   </div>
                   <div>
-                    <span className="text-[9px] font-mono text-neutral-400 font-semibold block leading-tight">
+                    <span className="text-[9px] font-mono text-neutral-400 dark:text-neutral-500 font-semibold block leading-tight">
                       NODO {meta.nodeNum}
                     </span>
-                    <h4 className="text-xs font-bold text-white tracking-tight truncate max-w-[130px]">
+                    <h4 className="text-xs font-bold text-neutral-900 dark:text-white tracking-tight truncate max-w-[130px]">
                       {meta.title}
                     </h4>
                   </div>
@@ -489,8 +539,8 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
 
                 <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full font-mono ${
                   meta.badge.includes("bajo")
-                    ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
-                    : "bg-neutral-800 text-neutral-300 border border-neutral-700"
+                    ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
+                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700"
                 }`}>
                   {meta.badge}
                 </span>
@@ -498,18 +548,18 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
 
               {/* Métrica Principal */}
               <div className="py-1">
-                <div className="text-lg font-bold text-white font-mono tracking-tight">
+                <div className="text-lg font-bold text-neutral-900 dark:text-white font-mono tracking-tight">
                   {meta.statMain}
                 </div>
-                <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug line-clamp-1">
+                <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug line-clamp-1">
                   {meta.statSub}
                 </p>
               </div>
 
               {/* Indicador de conexión activo */}
-              <div className="pt-2 mt-1 border-t border-neutral-800/60 flex items-center justify-between text-[10px] text-neutral-500">
+              <div className="pt-2 mt-1 border-t border-neutral-100 dark:border-neutral-800/60 flex items-center justify-between text-[10px] text-neutral-500 dark:text-neutral-400">
                 <span className="flex items-center gap-1 font-mono">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
                   Conectado
                 </span>
                 <span className="text-apple-blue font-semibold hover:underline">
@@ -530,20 +580,20 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
           {/* Backdrop semi-transparente para cerrar al hacer clic afuera */}
           <div 
             onClick={() => setSelectedNodeKey(null)}
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 transition-opacity animate-fadeIn"
+            className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-xs z-40 transition-opacity animate-fadeIn"
           />
 
-          <aside className="fixed top-0 right-0 h-full w-80 sm:w-96 bg-[#18191f]/95 backdrop-blur-2xl p-6 border-l border-neutral-800 shadow-2xl z-50 flex flex-col justify-between animate-fadeIn text-neutral-200">
+          <aside className="fixed top-0 right-0 h-full w-80 sm:w-96 bg-white/95 dark:bg-[#18191f]/95 backdrop-blur-2xl p-6 border-l border-neutral-200 dark:border-neutral-800 shadow-2xl z-50 flex flex-col justify-between animate-fadeIn text-neutral-800 dark:text-neutral-200">
             <div className="space-y-5">
-              {/* Header del Inspector con botón X que SÍ cierra */}
-              <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+              {/* Header del Inspector con botón X que cierra */}
+              <div className="flex items-center justify-between pb-3 border-b border-neutral-200/80 dark:border-neutral-800">
                 <span className="text-[10px] font-mono font-bold text-apple-blue uppercase tracking-wider">
                   {activeInspectorMeta.category}
                 </span>
                 <button
                   type="button"
                   onClick={() => setSelectedNodeKey(null)}
-                  className="w-8 h-8 rounded-full bg-neutral-800 hover:bg-neutral-700 flex items-center justify-center text-neutral-300 hover:text-white transition-colors"
+                  className="w-8 h-8 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 flex items-center justify-center text-neutral-500 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white transition-colors"
                   aria-label="Cerrar inspector"
                 >
                   <X className="w-4 h-4" />
@@ -552,37 +602,37 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
 
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <div className={`w-6 h-6 rounded-lg ${activeInspectorMeta.colorScheme.bg}/20 ${activeInspectorMeta.colorScheme.accent} flex items-center justify-center`}>
+                  <div className={`w-6 h-6 rounded-lg ${activeInspectorMeta.colorScheme.bg}/15 dark:${activeInspectorMeta.colorScheme.bg}/20 ${activeInspectorMeta.colorScheme.accent} flex items-center justify-center`}>
                     {activeInspectorMeta.icon}
                   </div>
-                  <h3 className="text-lg font-bold text-white tracking-tight">
+                  <h3 className="text-lg font-bold text-neutral-900 dark:text-white tracking-tight">
                     {activeInspectorMeta.title}
                   </h3>
                 </div>
-                <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">
                   {activeInspectorMeta.desc}
                 </p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-[#0f1014] border border-neutral-800">
-                <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block font-mono">
+              <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-[#0f1014] border border-neutral-200/80 dark:border-neutral-800">
+                <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block font-mono">
                   Métrica en Tiempo Real
                 </span>
-                <div className="text-2xl font-extrabold text-white mt-1 font-mono">
+                <div className="text-2xl font-extrabold text-neutral-900 dark:text-white mt-1 font-mono">
                   {activeInspectorMeta.statMain}
                 </div>
-                <span className="text-xs text-neutral-400 mt-0.5 block">
+                <span className="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5 block">
                   {activeInspectorMeta.statSub}
                 </span>
               </div>
 
               <div className="space-y-2">
-                <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block font-mono">
+                <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block font-mono">
                   Telemetría & Eventos de Módulo
                 </span>
-                <div className="p-3 rounded-2xl bg-[#0f1014] font-mono text-[11px] text-neutral-300 space-y-1.5 border border-neutral-800/90 max-h-48 overflow-y-auto">
+                <div className="p-3 rounded-2xl bg-neutral-50 dark:bg-[#0f1014] font-mono text-[11px] text-neutral-700 dark:text-neutral-300 space-y-1.5 border border-neutral-200 dark:border-neutral-800/90 max-h-48 overflow-y-auto">
                   {activeInspectorMeta.events.map((ev: string, idx: number) => (
-                    <div key={idx} className="leading-tight truncate text-neutral-300">
+                    <div key={idx} className="leading-tight truncate">
                       {ev}
                     </div>
                   ))}
@@ -590,14 +640,14 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
               </div>
             </div>
 
-            <div className="pt-4 border-t border-neutral-800">
+            <div className="pt-4 border-t border-neutral-200/80 dark:border-neutral-800">
               <button
                 type="button"
                 onClick={() => {
                   setSelectedNodeKey(null);
                   onNavigate(activeInspectorMeta.actionView);
                 }}
-                className="w-full py-3 px-4 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-semibold shadow-lg shadow-apple-blue/25 transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 px-4 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-semibold shadow-md shadow-apple-blue/20 transition-all flex items-center justify-center gap-2"
               >
                 <span>{activeInspectorMeta.actionLabel}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
