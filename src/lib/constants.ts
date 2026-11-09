@@ -236,6 +236,49 @@ export const INITIAL_PRODUCTS: Product[] = [
     hasBatches: true,
     batchNumber: "L-2026-B12",
     expirationDate: "2027-08-15",
+    batches: [
+      {
+        id: "batch-gli-1",
+        batchNumber: "L-2026-B12",
+        expirationDate: "2027-08-15",
+        stock: 10,
+        barcode: "743200192805",
+        createdAt: "2026-08-10",
+      },
+      {
+        id: "batch-gli-2",
+        batchNumber: "L-2025-A08",
+        expirationDate: "2026-11-28", // Próximo a vencer (alerta naranja)
+        stock: 4,
+        barcode: "743200192899",
+        createdAt: "2025-11-20",
+      },
+    ],
+  },
+  {
+    id: "prod-6",
+    sku: "FER-UREA-50",
+    barcode: "743200192806",
+    name: "Fertilizante Urea Granulada 46% 50 Kg",
+    category: "Agroquímicos",
+    unit: "Saco",
+    costPrice: 820.0,
+    salePrice: 980.0,
+    stock: 35,
+    minStock: 15,
+    hasBatches: true,
+    batchNumber: "LOT-UREA-2026",
+    expirationDate: "2028-03-30",
+    batches: [
+      {
+        id: "batch-urea-1",
+        batchNumber: "LOT-UREA-2026",
+        expirationDate: "2028-03-30",
+        stock: 35,
+        barcode: "743200192806",
+        createdAt: "2026-09-01",
+      },
+    ],
   },
 ];
 

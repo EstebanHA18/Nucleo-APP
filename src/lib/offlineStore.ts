@@ -1,5 +1,50 @@
-import { Product, Customer, Sale, TenantSettings, AppUser } from "@/types";
+import { Product, Customer, Sale, TenantSettings, AppUser, Batch } from "@/types";
 import { INITIAL_PRODUCTS, INITIAL_CUSTOMERS } from "./constants";
+
+export function getBatchExpirationStatus(dateStr?: string): {
+  status: "expired" | "expiring_soon" | "valid";
+  daysRemaining: number;
+  label: string;
+  badgeClass: string;
+} {
+  if (!dateStr) {
+    return {
+      status: "valid",
+      daysRemaining: 999,
+      label: "Sin fecha",
+      badgeClass: "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400",
+    };
+  }
+
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const expiry = new Date(dateStr);
+  const diffTime = expiry.getTime() - now.getTime();
+  const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (days < 0) {
+    return {
+      status: "expired",
+      daysRemaining: days,
+      label: `Vencido (${Math.abs(days)}d atrás)`,
+      badgeClass: "bg-apple-red/10 text-apple-red border border-apple-red/30",
+    };
+  } else if (days <= 30) {
+    return {
+      status: "expiring_soon",
+      daysRemaining: days,
+      label: `Por vencer (${days}d)`,
+      badgeClass: "bg-apple-orange/10 text-apple-orange border border-apple-orange/30 animate-pulse font-bold",
+    };
+  } else {
+    return {
+      status: "valid",
+      daysRemaining: days,
+      label: `Vigente (${days}d)`,
+      badgeClass: "bg-apple-green/10 text-apple-green border border-apple-green/30",
+    };
+  }
+}
 
 const STORAGE_KEYS = {
   TENANT: "nucleo_tenant_settings",
@@ -30,15 +75,53 @@ export const saveStoredTenant = (tenant: TenantSettings) => {
 export const getStoredProducts = (): Product[] => {
   if (typeof window === "undefined") return INITIAL_PRODUCTS;
   const raw = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
+  let prods: Product[] = [];
   if (!raw) {
     localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(INITIAL_PRODUCTS));
-    return INITIAL_PRODUCTS;
+    prods = INITIAL_PRODUCTS;
+  } else {
+    try {
+      prods = JSON.parse(raw);
+    } catch {
+      prods = INITIAL_PRODUCTS;
+    }
   }
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return INITIAL_PRODUCTS;
+
+  // Normalizar y sincronizar lotes existentes si el producto tiene hasBatches
+  let hasChanges = false;
+  const normalized = prods.map((p) => {
+    let updated = { ...p };
+    // Asegurar que prod-5 o productos con hasBatches tengan su colección de lotes
+    if (updated.hasBatches) {
+      if (!updated.batches || updated.batches.length === 0) {
+        updated.batches = [
+          {
+            id: `batch-${updated.id}-1`,
+            batchNumber: updated.batchNumber || "L-2026-B12",
+            expirationDate: updated.expirationDate || "2027-08-15",
+            stock: updated.stock,
+            barcode: updated.barcode || `${updated.sku}-B1`,
+            createdAt: new Date().toISOString(),
+          },
+        ];
+        hasChanges = true;
+      } else {
+        // Asegurar consistencia del stock total como la suma de sus lotes
+        const totalBatchStock = updated.batches.reduce((sum, b) => sum + (Number(b.stock) || 0), 0);
+        if (updated.stock !== totalBatchStock) {
+          updated.stock = totalBatchStock;
+          hasChanges = true;
+        }
+      }
+    }
+    return updated;
+  });
+
+  if (hasChanges && typeof window !== "undefined") {
+    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(normalized));
   }
+
+  return normalized;
 };
 
 export const saveStoredProducts = (products: Product[]) => {
@@ -186,6 +269,27 @@ export const saveCurrentUser = (user: AppUser) => {
   localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
 };
 
+export const updateProductBatches = (productId: string, batches: Batch[]): Product[] => {
+  const products = getStoredProducts();
+  const updated = products.map((prod) => {
+    if (prod.id === productId) {
+      const totalStock = batches.reduce((acc, b) => acc + (Number(b.stock) || 0), 0);
+      const activeBatch = batches.find((b) => b.stock > 0) || batches[0];
+      return {
+        ...prod,
+        hasBatches: true,
+        batches,
+        stock: totalStock,
+        batchNumber: activeBatch?.batchNumber || prod.batchNumber,
+        expirationDate: activeBatch?.expirationDate || prod.expirationDate,
+      };
+    }
+    return prod;
+  });
+  saveStoredProducts(updated);
+  return updated;
+};
+
 export const recordSaleLocally = (sale: Sale): { updatedProducts: Product[]; updatedCustomers: Customer[] } => {
   const sales = getStoredSales();
   sales.unshift(sale);
@@ -193,15 +297,69 @@ export const recordSaleLocally = (sale: Sale): { updatedProducts: Product[]; upd
     localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(sales));
   }
 
-  // 1. Descontar inventario automáticamente
+  // 1. Descontar inventario automáticamente con soporte de Lotes & FEFO
   const products = getStoredProducts();
   const updatedProducts = products.map((prod) => {
-    const itemInSale = sale.items.find((it) => it.product.id === prod.id);
-    if (itemInSale) {
-      const newStock = Math.max(0, prod.stock - itemInSale.quantity);
-      return { ...prod, stock: newStock };
+    // Buscar si este producto fue vendido en la orden
+    const itemsInSale = sale.items.filter((it) => it.product.id === prod.id);
+    if (itemsInSale.length === 0) return prod;
+
+    const totalDeduct = itemsInSale.reduce((acc, it) => acc + it.quantity, 0);
+
+    // Si maneja lotes
+    if (prod.hasBatches && prod.batches && prod.batches.length > 0) {
+      let updatedBatches = prod.batches.map((b) => ({ ...b }));
+
+      // Para cada ítem en la venta (puede haber múltiples líneas o lotes específicos)
+      itemsInSale.forEach((saleItem) => {
+        let remaining = saleItem.quantity;
+
+        if (saleItem.selectedBatch) {
+          // Si el cajero seleccionó o escaneó un lote específico
+          updatedBatches = updatedBatches.map((b) => {
+            if (b.id === saleItem.selectedBatch?.id || b.batchNumber === saleItem.selectedBatch?.batchNumber) {
+              const take = Math.min(b.stock, remaining);
+              remaining -= take;
+              return { ...b, stock: Math.max(0, b.stock - take) };
+            }
+            return b;
+          });
+        }
+
+        // Si aún queda por descontar (o no se seleccionó lote específico), usar FEFO (First Expired First Out)
+        if (remaining > 0) {
+          // Ordenar índices por fecha de vencimiento ascendente
+          const sortedIndices = updatedBatches
+            .map((b, idx) => ({ idx, expiry: new Date(b.expirationDate).getTime(), stock: b.stock }))
+            .sort((a, b) => a.expiry - b.expiry);
+
+          for (const item of sortedIndices) {
+            if (remaining <= 0) break;
+            const currentBatchStock = updatedBatches[item.idx].stock;
+            if (currentBatchStock > 0) {
+              const take = Math.min(currentBatchStock, remaining);
+              updatedBatches[item.idx].stock -= take;
+              remaining -= take;
+            }
+          }
+        }
+      });
+
+      const totalBatchStock = updatedBatches.reduce((acc, b) => acc + b.stock, 0);
+      const nextActive = updatedBatches.find((b) => b.stock > 0) || updatedBatches[0];
+
+      return {
+        ...prod,
+        stock: totalBatchStock,
+        batches: updatedBatches,
+        batchNumber: nextActive?.batchNumber || prod.batchNumber,
+        expirationDate: nextActive?.expirationDate || prod.expirationDate,
+      };
     }
-    return prod;
+
+    // Producto estándar sin lotes
+    const newStock = Math.max(0, prod.stock - totalDeduct);
+    return { ...prod, stock: newStock };
   });
   saveStoredProducts(updatedProducts);
 

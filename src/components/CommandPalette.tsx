@@ -63,7 +63,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     (p) =>
       p.name.toLowerCase().includes(query.toLowerCase()) ||
       p.sku.toLowerCase().includes(query.toLowerCase()) ||
-      p.category.toLowerCase().includes(query.toLowerCase())
+      p.category.toLowerCase().includes(query.toLowerCase()) ||
+      (p.barcode && p.barcode.includes(query)) ||
+      (p.hasBatches && p.batches?.some(b => b.batchNumber.toLowerCase().includes(query.toLowerCase()) || (b.barcode && b.barcode.includes(query))))
   ).slice(0, 4);
 
   return (

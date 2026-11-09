@@ -39,6 +39,17 @@ export interface UnitOfMeasure {
   ratio: number;
 }
 
+export interface Batch {
+  id: string;
+  batchNumber: string;
+  expirationDate: string; // "YYYY-MM-DD"
+  stock: number;
+  barcode?: string;
+  costPrice?: number;
+  createdAt?: string;
+  notes?: string;
+}
+
 export interface Product {
   id: string;
   sku: string;
@@ -51,6 +62,7 @@ export interface Product {
   stock: number;
   minStock: number;
   hasBatches?: boolean;
+  batches?: Batch[];
   batchNumber?: string;
   expirationDate?: string;
 }
@@ -61,6 +73,7 @@ export interface CartItem {
   unit: string;
   unitPrice: number;
   subtotal: number;
+  selectedBatch?: Batch;
 }
 
 export interface Customer {
