@@ -202,7 +202,7 @@ export default function Home() {
                 customers={customers}
                 sales={sales}
                 onNavigate={(v) => setActiveView(v)}
-                onOpenSettingsWizard={() => setShowWizard(true)}
+                onOpenSettingsWizard={() => setActiveView("settings")}
               />
             )}
 
