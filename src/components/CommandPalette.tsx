@@ -9,7 +9,9 @@ import {
   Network, 
   Terminal, 
   Sliders, 
-  ArrowRight
+  ArrowRight,
+  Dog,
+  Stethoscope
 } from "lucide-react";
 import { Product } from "@/types";
 
@@ -50,6 +52,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { id: "pos", name: "Abrir Terminal POS (Caja & Ventas)", icon: <Receipt className="w-4 h-4 text-apple-blue" />, category: "Navegación" },
     { id: "inventory", name: "Gestionar Inventario & Kardex", icon: <Package className="w-4 h-4 text-apple-purple" />, category: "Navegación" },
     { id: "customers", name: "Directorio de Clientes", icon: <Users className="w-4 h-4 text-apple-green" />, category: "Navegación" },
+    { id: "veterinary", name: "Veterinaria & Pacientes (Expediente Clínico y Vacunas)", icon: <Dog className="w-4 h-4 text-amber-500" />, category: "Salud" },
+    { id: "clinical", name: "Clínica & Odontología (Historias Clínicas y Odontograma)", icon: <Stethoscope className="w-4 h-4 text-teal-500" />, category: "Salud" },
     { id: "spatial", name: "Ver Red Espacial (Topología de Nodos)", icon: <Network className="w-4 h-4 text-apple-teal" />, category: "Navegación" },
     { id: "terminal", name: "Abrir SuperAdmin Terminal (God Mode)", icon: <Terminal className="w-4 h-4 text-apple-orange" />, category: "Administración" },
     { id: "wizard", name: "Reconfigurar Negocio / Business Builder", icon: <Sliders className="w-4 h-4 text-apple-pink" />, category: "Configuración" },

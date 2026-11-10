@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { 
   Users, 
   Receipt, 
@@ -14,7 +14,9 @@ import {
   BarChart3,
   SlidersHorizontal,
   Activity,
-  Cpu
+  Cpu,
+  Dog,
+  Stethoscope
 } from "lucide-react";
 import { TenantSettings, Product, Customer, Sale, ModuleKey } from "@/types";
 
@@ -23,6 +25,7 @@ interface SpatialCanvasProps {
   products: Product[];
   customers: Customer[];
   sales: Sale[];
+  darkMode?: boolean;
   onNavigate: (view: string) => void;
   onOpenSettingsWizard: () => void;
 }
@@ -32,11 +35,18 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
   products,
   customers,
   sales,
+  darkMode = true,
   onNavigate,
   onOpenSettingsWizard,
 }) => {
   // Por defecto cerrado (null), solo se abre al hacer clic en un módulo
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
+
+  // Refs para medir coordenadas reales de los nodos y animar en el canvas
+  const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const posNodeRef = useRef<HTMLDivElement>(null);
+  const satNodeRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // Métricas dinámicas calculadas
   const lowStockProducts = products.filter((p) => p.stock <= p.minStock);
@@ -248,6 +258,52 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
         "[12:30:00] REPORTE: Cierre de jornada proyectado",
       ],
     },
+    veterinary: {
+      nodeNum: "09",
+      title: "Veterinaria & Pacientes",
+      category: "SALUD ANIMAL",
+      badge: "Expedientes",
+      icon: <Dog className="w-4 h-4" />,
+      colorScheme: {
+        accent: "text-amber-500",
+        bg: "bg-amber-500",
+        lineColor: "#f59e0b",
+        pulseColor: "#fbbf24",
+      },
+      statMain: "3 Pacientes",
+      statSub: "Carnet de vacunas y desparasitación",
+      actionView: "veterinary",
+      actionLabel: "Abrir Expedientes Veterinarios",
+      desc: "Historial clínico de mascotas, constantes vitales, vacunas aplicadas y fichas de tutores.",
+      events: [
+        "[16:44:00] VACUNA: Antirrábica aplicada conforme",
+        "[16:20:00] EXPEDIENTE: Chequeo de rutina registrado",
+        "[14:10:00] CONTROL: Desparasitación programada",
+      ],
+    },
+    clinical: {
+      nodeNum: "10",
+      title: "Clínica & Odontograma",
+      category: "SALUD HUMANA",
+      badge: "FDI 32",
+      icon: <Stethoscope className="w-4 h-4" />,
+      colorScheme: {
+        accent: "text-teal-600 dark:text-teal-400",
+        bg: "bg-teal-500",
+        lineColor: "#0d9488",
+        pulseColor: "#2dd4bf",
+      },
+      statMain: "3 Expedientes",
+      statSub: "Odontograma y recetas médicas",
+      actionView: "clinical",
+      actionLabel: "Abrir Historias Clínicas",
+      desc: "Historias clínicas confidenciales, anamnesis, alergias, recetas médicas y odontograma interactivo.",
+      events: [
+        "[16:50:00] ODONTOGRAMA: Pieza 26 obturada con resina",
+        "[15:30:00] CONSULTA: Limpieza y profilaxis finalizada",
+        "[14:00:00] RECETA: Indicaciones médicas emitidas",
+      ],
+    },
   };
 
   // Módulos activos para la empresa (excluyendo POS que es el nodo central nuclear)
@@ -298,19 +354,245 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
     },
   ];
 
+  // Bucle de animación para estrellas flotantes de fondo y pelotitas que viajan por los circuitos
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animId: number;
+    let width = 0;
+    let height = 0;
+
+    interface Star {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      radius: number;
+      baseAlpha: number;
+      pulseSpeed: number;
+      pulsePhase: number;
+      hue: "cyan" | "white" | "blue" | "purple";
+    }
+
+    const stars: Star[] = [];
+    const NUM_STARS = 75;
+
+    const resize = () => {
+      if (!container || !canvas) return;
+      const rect = container.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      width = rect.width;
+      height = rect.height;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+    };
+
+    resize();
+    window.addEventListener("resize", resize);
+
+    const hues: ("cyan" | "white" | "blue" | "purple")[] = ["cyan", "white", "blue", "purple"];
+    for (let i = 0; i < NUM_STARS; i++) {
+      stars.push({
+        x: Math.random() * (width || 800),
+        y: Math.random() * (height || 600),
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: (Math.random() - 0.5) * 0.4,
+        radius: Math.random() * 1.8 + 0.8,
+        baseAlpha: Math.random() * 0.45 + 0.25,
+        pulseSpeed: 0.0015 + Math.random() * 0.002,
+        pulsePhase: Math.random() * Math.PI * 2,
+        hue: hues[Math.floor(Math.random() * hues.length)],
+      });
+    }
+
+    const render = (now: number) => {
+      ctx.clearRect(0, 0, width, height);
+
+      const isDark = document.documentElement.classList.contains("dark");
+
+      // 1. DIBUJAR Y DESPLAZAR ESTRELLAS / PELOTITAS DE FONDO
+      for (const s of stars) {
+        s.x += s.vx;
+        s.y += s.vy;
+        if (s.x < 0) s.x = width;
+        if (s.x > width) s.x = 0;
+        if (s.y < 0) s.y = height;
+        if (s.y > height) s.y = 0;
+
+        const currentAlpha = Math.max(0.12, Math.min(0.95, s.baseAlpha + Math.sin(now * s.pulseSpeed + s.pulsePhase) * 0.22));
+
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
+
+        if (isDark) {
+          if (s.hue === "cyan") {
+            ctx.fillStyle = `rgba(56, 189, 248, ${currentAlpha})`;
+          } else if (s.hue === "blue") {
+            ctx.fillStyle = `rgba(0, 113, 227, ${currentAlpha})`;
+          } else if (s.hue === "purple") {
+            ctx.fillStyle = `rgba(168, 85, 247, ${currentAlpha * 0.85})`;
+          } else {
+            ctx.fillStyle = `rgba(255, 255, 255, ${currentAlpha})`;
+          }
+        } else {
+          // Modo Normal (Light): visibles y elegantes en azul Apple y pizarra suave
+          if (s.hue === "cyan" || s.hue === "blue") {
+            ctx.fillStyle = `rgba(0, 113, 227, ${currentAlpha * 0.75})`;
+          } else if (s.hue === "purple") {
+            ctx.fillStyle = `rgba(147, 51, 234, ${currentAlpha * 0.65})`;
+          } else {
+            ctx.fillStyle = `rgba(71, 85, 105, ${currentAlpha * 0.7})`;
+          }
+        }
+        ctx.fill();
+
+        // Halo difuso para estrellas con mayor tamaño
+        if (s.radius > 1.8) {
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.radius * 2.3, 0, Math.PI * 2);
+          ctx.fillStyle = isDark
+            ? `rgba(56, 189, 248, ${currentAlpha * 0.2})`
+            : `rgba(0, 113, 227, ${currentAlpha * 0.15})`;
+          ctx.fill();
+        }
+      }
+
+      // 2. DIBUJAR LÍNEAS DE CIRCUITO Y PELOTITAS VIAJERAS ACTIVAS A LOS NODOS
+      const containerRect = container.getBoundingClientRect();
+      const posNode = posNodeRef.current;
+
+      if (posNode && containerRect.width > 0) {
+        const posRect = posNode.getBoundingClientRect();
+        const posCenter = {
+          x: posRect.left + posRect.width / 2 - containerRect.left,
+          y: posRect.top + posRect.height / 2 - containerRect.top,
+        };
+
+        satelliteKeys.slice(0, 4).forEach((key, idx) => {
+          const satNode = satNodeRefs.current[idx];
+          if (!satNode) return;
+
+          const satRect = satNode.getBoundingClientRect();
+          const satCenter = {
+            x: satRect.left + satRect.width / 2 - containerRect.left,
+            y: satRect.top + satRect.height / 2 - containerRect.top,
+          };
+
+          const curveOffset = satCenter.x < posCenter.x ? 35 : -35;
+          const cp = {
+            x: (satCenter.x + posCenter.x) / 2 + curveOffset,
+            y: (satCenter.y + posCenter.y) / 2,
+          };
+
+          // Línea Bézier punteada de conexión
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(satCenter.x, satCenter.y);
+          ctx.quadraticCurveTo(cp.x, cp.y, posCenter.x, posCenter.y);
+          ctx.setLineDash([4, 6]);
+          ctx.lineWidth = 1.75;
+          ctx.strokeStyle = isDark 
+            ? "rgba(56, 189, 248, 0.35)" 
+            : "rgba(0, 113, 227, 0.35)";
+          ctx.stroke();
+          ctx.restore();
+
+          // Punto de anclaje
+          ctx.beginPath();
+          ctx.arc(satCenter.x, satCenter.y, 3, 0, Math.PI * 2);
+          ctx.fillStyle = isDark ? "#38bdf8" : "#0071e3";
+          ctx.fill();
+
+          const getBezierPoint = (t: number) => {
+            const inv = 1 - t;
+            return {
+              x: inv * inv * satCenter.x + 2 * inv * t * cp.x + t * t * posCenter.x,
+              y: inv * inv * satCenter.y + 2 * inv * t * cp.y + t * t * posCenter.y,
+            };
+          };
+
+          // PELOTITA 1: VIAJA DEL SATÉLITE AL POS CENTRAL
+          const speed1 = 2800 + idx * 400;
+          const t1 = ((now + idx * 600) % speed1) / speed1;
+          const pt1 = getBezierPoint(t1);
+
+          // Cola de la pelotita
+          for (let trail = 1; trail <= 3; trail++) {
+            const tTrail = Math.max(0, t1 - trail * 0.025);
+            const ptTrail = getBezierPoint(tTrail);
+            ctx.beginPath();
+            ctx.arc(ptTrail.x, ptTrail.y, Math.max(1, 3.5 - trail * 0.7), 0, Math.PI * 2);
+            ctx.fillStyle = isDark
+              ? `rgba(56, 189, 248, ${0.4 - trail * 0.1})`
+              : `rgba(0, 113, 227, ${0.4 - trail * 0.1})`;
+            ctx.fill();
+          }
+
+          // Halo difuso
+          const grad = ctx.createRadialGradient(pt1.x, pt1.y, 1, pt1.x, pt1.y, 10);
+          grad.addColorStop(0, isDark ? "rgba(56, 189, 248, 0.85)" : "rgba(0, 113, 227, 0.75)");
+          grad.addColorStop(1, "rgba(56, 189, 248, 0)");
+          ctx.beginPath();
+          ctx.arc(pt1.x, pt1.y, 10, 0, Math.PI * 2);
+          ctx.fillStyle = grad;
+          ctx.fill();
+
+          // Núcleo brillante
+          ctx.beginPath();
+          ctx.arc(pt1.x, pt1.y, 4, 0, Math.PI * 2);
+          ctx.fillStyle = isDark ? "#ffffff" : "#0071e3";
+          ctx.shadowColor = isDark ? "#38bdf8" : "#0071e3";
+          ctx.shadowBlur = 8;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+
+          // PELOTITA 2: DE RETORNO (POS -> SATÉLITE)
+          const speed2 = 3300 + idx * 300;
+          const t2 = 1 - (((now + 1200 + idx * 400) % speed2) / speed2);
+          const pt2 = getBezierPoint(t2);
+
+          ctx.beginPath();
+          ctx.arc(pt2.x, pt2.y, 2.7, 0, Math.PI * 2);
+          ctx.fillStyle = isDark ? "#34d399" : "#10b981";
+          ctx.shadowColor = isDark ? "#34d399" : "#10b981";
+          ctx.shadowBlur = 6;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        });
+      }
+
+      animId = requestAnimationFrame(render);
+    };
+
+    animId = requestAnimationFrame(render);
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener("resize", resize);
+    };
+  }, [satelliteKeys, darkMode]);
+
   const posCoreMeta = moduleMetaRegistry["pos"];
   const activeInspectorMeta = selectedNodeKey ? moduleMetaRegistry[selectedNodeKey] : null;
 
   return (
-    <div className="relative w-full min-h-[760px] md:h-[780px] rounded-3xl bg-neutral-100/90 dark:bg-[#0d0e12] border border-neutral-300/80 dark:border-neutral-800/80 overflow-hidden select-none p-4 md:p-6 transition-colors duration-300 shadow-xl dark:shadow-2xl">
-      
-      {/* Fondo de constelación con rejilla radial fina (adaptable a Light y Dark) */}
-      <div 
-        className="absolute inset-0 pointer-events-none opacity-30 dark:opacity-25"
-        style={{
-          backgroundImage: "radial-gradient(#6b7280 1px, transparent 1px)",
-          backgroundSize: "28px 28px",
-        }}
+    <div 
+      ref={containerRef}
+      className="relative w-full min-h-[760px] md:h-[780px] rounded-3xl bg-slate-100/90 dark:bg-[#0d0e12] border border-slate-300/80 dark:border-neutral-800/80 overflow-hidden select-none p-4 md:p-6 transition-colors duration-300 shadow-xl dark:shadow-2xl"
+    >
+      {/* Canvas interactivo de estrellas flotantes y circuitos con pelotitas viajeras */}
+      <canvas 
+        ref={canvasRef} 
+        className="absolute inset-0 w-full h-full pointer-events-none z-0" 
       />
 
       {/* Bioluminiscencia de fondo */}
@@ -361,80 +643,6 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* SVG DE CIRCUITOS CON PELOTITAS VIAJERAS ACTIVAS ENTRE CADA MÓDULO Y NODO  */}
-      {/* ========================================================================= */}
-      <svg 
-        className="absolute inset-0 w-full h-full pointer-events-none z-0 hidden md:block" 
-        viewBox="0 0 1000 700" 
-        preserveAspectRatio="none"
-      >
-        <defs>
-          <filter id="glow-pulse" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-
-        {satelliteKeys.slice(0, 4).map((key, idx) => {
-          const meta = moduleMetaRegistry[key];
-          const coord = orbitCoordinates[idx];
-          if (!coord || !meta) return null;
-
-          const wireColor = meta.colorScheme.lineColor;
-          const pulseColor = meta.colorScheme.pulseColor;
-          const animDuration = `${2.4 + idx * 0.4}s`;
-          const reverseDuration = `${2.8 + idx * 0.3}s`;
-
-          return (
-            <g key={idx}>
-              {/* Cable Bézier punteado */}
-              <path
-                d={coord.pathForward}
-                fill="none"
-                stroke={wireColor}
-                strokeWidth="1.75"
-                strokeDasharray="4 5"
-                className="opacity-40 dark:opacity-60"
-              />
-
-              {/* Punto terminal de anclaje */}
-              <circle cx={coord.x} cy={coord.y} r="2.5" fill={pulseColor} />
-
-              {/* 1. PELOTITA PRINCIPAL QUE CORRE DEL MÓDULO SATÉLITE HACIA EL POS */}
-              <circle r="4" fill={pulseColor} filter="url(#glow-pulse)">
-                <animateMotion
-                  dur={animDuration}
-                  repeatCount="indefinite"
-                  path={coord.pathForward}
-                />
-              </circle>
-              {/* Halo difuso que acompaña a la pelotita principal */}
-              <circle r="7" fill={pulseColor} opacity="0.35">
-                <animateMotion
-                  dur={animDuration}
-                  repeatCount="indefinite"
-                  path={coord.pathForward}
-                />
-              </circle>
-
-              {/* 2. PELOTITA DE RETORNO QUE CORRE DEL NÚCLEO POS HACIA EL MÓDULO */}
-              <circle r="2.5" fill="#38bdf8" opacity="0.85">
-                <animateMotion
-                  dur={reverseDuration}
-                  begin={`${1.2 + idx * 0.2}s`}
-                  repeatCount="indefinite"
-                  path={coord.pathBackward}
-                />
-              </circle>
-            </g>
-          );
-        })}
-      </svg>
-
       {/* LIENZO ESPACIAL CONSTELACIÓN: Posiciones orbitales flotantes */}
       <div className="relative z-10 w-full h-[660px] flex items-center justify-center">
 
@@ -442,6 +650,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
         {/* NODO NUCLEAR CENTRAL: POS & VENTAS (Flotando en el centro) */}
         {/* ========================================================= */}
         <div 
+          ref={posNodeRef}
           onClick={() => setSelectedNodeKey("pos")}
           className={`cursor-pointer transition-all duration-300 z-10 w-[330px] sm:w-[380px] rounded-3xl p-5 md:p-6 bg-white/95 dark:bg-[#16171d]/90 backdrop-blur-2xl border-2 ${
             selectedNodeKey === "pos"
@@ -514,8 +723,9 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
           return (
             <div
               key={key}
+              ref={(el) => { satNodeRefs.current[index] = el; }}
               onClick={() => setSelectedNodeKey(key)}
-              className={`absolute ${coord.posClass} ${coord.animClass} cursor-pointer transition-all duration-300 w-[240px] sm:w-[270px] rounded-2xl p-4 bg-white/90 dark:bg-[#14151b]/85 backdrop-blur-xl border ${
+              className={`absolute ${coord.posClass} ${coord.animClass} cursor-pointer transition-all duration-300 w-[240px] sm:w-[270px] rounded-2xl p-4 bg-white/95 dark:bg-[#14151b]/85 backdrop-blur-xl border ${
                 isSelected
                   ? "border-apple-blue ring-2 ring-apple-blue/40 shadow-[0_0_25px_rgba(0,122,255,0.25)] scale-105 z-30"
                   : "border-neutral-200 dark:border-neutral-800/90 hover:border-apple-blue/50 dark:hover:border-neutral-700 hover:scale-105 shadow-[0_8px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.6)] z-10"

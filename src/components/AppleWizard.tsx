@@ -26,7 +26,10 @@ import {
   Phone,
   KeyRound,
   MapPin,
-  FileBadge
+  FileBadge,
+  Dog,
+  Stethoscope,
+  Smile
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { BusinessVertical, ModuleKey, TenantSettings } from "@/types";
@@ -85,6 +88,9 @@ export const AppleWizard: React.FC<AppleWizardProps> = ({ onComplete }) => {
       case "distribuidora": return <Truck className="w-5 h-5" />;
       case "taller": return <Cog className="w-5 h-5" />;
       case "constructora": return <Building2 className="w-5 h-5" />;
+      case "veterinaria": return <Dog className="w-5 h-5 text-amber-500" />;
+      case "clinica": return <Stethoscope className="w-5 h-5 text-teal-500" />;
+      case "dental": return <Smile className="w-5 h-5 text-sky-500" />;
       default: return <Sparkles className="w-5 h-5" />;
     }
   };

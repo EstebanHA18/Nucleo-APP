@@ -1,5 +1,20 @@
-import { Product, Customer, Sale, TenantSettings, AppUser, Batch, CashRegisterSession } from "@/types";
-import { INITIAL_PRODUCTS, INITIAL_CUSTOMERS } from "./constants";
+import { 
+  Product, 
+  Customer, 
+  Sale, 
+  TenantSettings, 
+  AppUser, 
+  Batch, 
+  CashRegisterSession,
+  PetPatient,
+  ClinicalPatient 
+} from "@/types";
+import { 
+  INITIAL_PRODUCTS, 
+  INITIAL_CUSTOMERS, 
+  INITIAL_VET_PATIENTS, 
+  INITIAL_CLINICAL_PATIENTS 
+} from "./constants";
 
 export function getBatchExpirationStatus(dateStr?: string): {
   status: "expired" | "expiring_soon" | "valid";
@@ -56,6 +71,46 @@ const STORAGE_KEYS = {
   OFFLINE_QUEUE: "nucleo_offline_queue",
   CASH_SESSION: "nucleo_cash_session",
   CASH_SESSION_HISTORY: "nucleo_cash_session_history",
+  VET_PATIENTS: "nucleo_vet_patients",
+  CLINICAL_PATIENTS: "nucleo_clinical_patients",
+};
+
+export const getStoredVetPatients = (): PetPatient[] => {
+  if (typeof window === "undefined") return INITIAL_VET_PATIENTS;
+  const raw = localStorage.getItem(STORAGE_KEYS.VET_PATIENTS);
+  if (!raw) {
+    localStorage.setItem(STORAGE_KEYS.VET_PATIENTS, JSON.stringify(INITIAL_VET_PATIENTS));
+    return INITIAL_VET_PATIENTS;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return INITIAL_VET_PATIENTS;
+  }
+};
+
+export const saveStoredVetPatients = (patients: PetPatient[]) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEYS.VET_PATIENTS, JSON.stringify(patients));
+};
+
+export const getStoredClinicalPatients = (): ClinicalPatient[] => {
+  if (typeof window === "undefined") return INITIAL_CLINICAL_PATIENTS;
+  const raw = localStorage.getItem(STORAGE_KEYS.CLINICAL_PATIENTS);
+  if (!raw) {
+    localStorage.setItem(STORAGE_KEYS.CLINICAL_PATIENTS, JSON.stringify(INITIAL_CLINICAL_PATIENTS));
+    return INITIAL_CLINICAL_PATIENTS;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return INITIAL_CLINICAL_PATIENTS;
+  }
+};
+
+export const saveStoredClinicalPatients = (patients: ClinicalPatient[]) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEYS.CLINICAL_PATIENTS, JSON.stringify(patients));
 };
 
 export const getStoredTenant = (): TenantSettings | null => {
@@ -63,7 +118,22 @@ export const getStoredTenant = (): TenantSettings | null => {
   const raw = localStorage.getItem(STORAGE_KEYS.TENANT);
   if (!raw) return null;
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.activeModules)) {
+      let changed = false;
+      if (!parsed.activeModules.includes("veterinary")) {
+        parsed.activeModules.push("veterinary");
+        changed = true;
+      }
+      if (!parsed.activeModules.includes("clinical")) {
+        parsed.activeModules.push("clinical");
+        changed = true;
+      }
+      if (changed) {
+        localStorage.setItem(STORAGE_KEYS.TENANT, JSON.stringify(parsed));
+      }
+    }
+    return parsed;
   } catch {
     return null;
   }

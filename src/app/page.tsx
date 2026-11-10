@@ -13,7 +13,9 @@ import { SuperAdminTerminal } from "@/components/SuperAdminTerminal";
 import { SettingsManager } from "@/components/SettingsManager";
 import { DashboardBuilder } from "@/components/DashboardBuilder";
 import { CommandPalette } from "@/components/CommandPalette";
-import { TenantSettings, Product, Customer, Sale, AppUser } from "@/types";
+import { VeterinaryManager } from "@/components/VeterinaryManager";
+import { ClinicalDentalManager } from "@/components/ClinicalDentalManager";
+import { TenantSettings, Product, Customer, Sale, AppUser, PetPatient, ClinicalPatient } from "@/types";
 import { 
   getStoredTenant, 
   saveStoredTenant, 
@@ -23,7 +25,9 @@ import {
   getStoredUsers,
   saveStoredUsers,
   getCurrentUser,
-  saveCurrentUser
+  saveCurrentUser,
+  getStoredVetPatients,
+  getStoredClinicalPatients
 } from "@/lib/offlineStore";
 
 export default function Home() {
@@ -40,6 +44,8 @@ export default function Home() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [vetPatients, setVetPatients] = useState<PetPatient[]>([]);
+  const [clinicalPatients, setClinicalPatients] = useState<ClinicalPatient[]>([]);
 
   // Initialize
   useEffect(() => {
@@ -62,6 +68,8 @@ export default function Home() {
       setProducts(getStoredProducts());
       setCustomers(getStoredCustomers());
       setSales(getStoredSales());
+      setVetPatients(getStoredVetPatients());
+      setClinicalPatients(getStoredClinicalPatients());
 
       const loadedUsers = getStoredUsers(storedTenant);
       setUsers(loadedUsers);
@@ -83,14 +91,23 @@ export default function Home() {
     }
   }, []);
 
-  // Sync dark mode class
+  // Sync dark mode class and storage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isDark = document.documentElement.classList.contains("dark");
+      setDarkMode(isDark);
+    }
+  }, []);
+
   useEffect(() => {
     if (typeof document !== "undefined") {
       const root = document.documentElement;
       if (darkMode) {
         root.classList.add("dark");
+        try { localStorage.setItem("nucleo_theme", "dark"); } catch (e) {}
       } else {
         root.classList.remove("dark");
+        try { localStorage.setItem("nucleo_theme", "light"); } catch (e) {}
       }
     }
   }, [darkMode]);
@@ -201,6 +218,7 @@ export default function Home() {
                 products={products}
                 customers={customers}
                 sales={sales}
+                darkMode={darkMode}
                 onNavigate={(v) => setActiveView(v)}
                 onOpenSettingsWizard={() => setActiveView("settings")}
               />
@@ -270,6 +288,26 @@ export default function Home() {
                 tenant={tenant}
                 onUpdateTenant={handleUpdateTenantSettings}
                 onNavigate={(v) => setActiveView(v)}
+              />
+            )}
+
+            {/* 9. Módulo Veterinario (Expedientes de Mascotas y Vacunas) */}
+            {activeView === "veterinary" && (
+              <VeterinaryManager
+                tenant={tenant}
+                patients={vetPatients}
+                setPatients={setVetPatients}
+                onNavigateToPOS={() => setActiveView("pos")}
+              />
+            )}
+
+            {/* 10. Módulo Clínico & Dental (Historias Médicas y Odontograma) */}
+            {activeView === "clinical" && (
+              <ClinicalDentalManager
+                tenant={tenant}
+                patients={clinicalPatients}
+                setPatients={setClinicalPatients}
+                onNavigateToPOS={() => setActiveView("pos")}
               />
             )}
           </main>
