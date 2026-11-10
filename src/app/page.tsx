@@ -10,6 +10,7 @@ import { InventoryManager } from "@/components/InventoryManager";
 import { CustomersManager } from "@/components/CustomersManager";
 import { UsersManager } from "@/components/UsersManager";
 import { SuperAdminTerminal } from "@/components/SuperAdminTerminal";
+import { SettingsManager } from "@/components/SettingsManager";
 import { DashboardBuilder } from "@/components/DashboardBuilder";
 import { CommandPalette } from "@/components/CommandPalette";
 import { TenantSettings, Product, Customer, Sale, AppUser } from "@/types";
@@ -260,6 +261,15 @@ export default function Home() {
               <SuperAdminTerminal
                 currentTenant={tenant}
                 onUpdateTenantSettings={handleUpdateTenantSettings}
+              />
+            )}
+
+            {/* 8. Ajustes & Configuración del Sistema (Facturas, Plan y Paneles) */}
+            {activeView === "settings" && currentUser.role === "owner" && (
+              <SettingsManager
+                tenant={tenant}
+                onUpdateTenant={handleUpdateTenantSettings}
+                onNavigate={(v) => setActiveView(v)}
               />
             )}
           </main>

@@ -153,15 +153,19 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           </button>
         )}
 
-        {/* Wizard Quick Trigger (Solo dueño) */}
+        {/* Ajustes y Configuración del Sistema (Solo dueño) */}
         {isOwner && (
           <>
             <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-700 mx-0.5" />
             <button
               type="button"
-              onClick={onOpenSettingsWizard}
-              className="p-1.5 rounded-full text-neutral-500 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-              title="Configurar Negocio & Módulos"
+              onClick={() => setActiveView("settings")}
+              className={`p-2 rounded-full transition-all flex items-center justify-center ${
+                activeView === "settings"
+                  ? "bg-apple-blue text-white shadow-md shadow-apple-blue/30 scale-105"
+                  : "text-neutral-500 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              }`}
+              title="Ajustes de Factura, Plan y Módulos"
             >
               <Sliders className="w-3.5 h-3.5" />
             </button>

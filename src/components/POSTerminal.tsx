@@ -1314,11 +1314,22 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
             </div>
 
             {/* Simulación de Ticket Térmico Imprimible */}
-            <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 font-mono text-xs border border-dashed border-neutral-300 dark:border-neutral-700 space-y-2">
-              <div className="text-center pb-2 border-b border-dashed border-neutral-300 dark:border-neutral-700">
-                <p className="font-bold text-sm uppercase">{tenant.name}</p>
-                <p className="text-[10px] text-neutral-500">RUC: {tenant.taxId || "J031000049102"}</p>
-                <p className="text-[10px] text-neutral-500">{tenant.city}, Nicaragua</p>
+            <div className={`p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 font-mono text-xs border border-dashed border-neutral-300 dark:border-neutral-700 space-y-2 ${
+              tenant.ticketFormat === "58mm" ? "max-w-[280px] mx-auto text-[11px]" : "w-full"
+            }`}>
+              <div className="text-center pb-2 border-b border-dashed border-neutral-300 dark:border-neutral-700 space-y-0.5">
+                <p className="font-extrabold text-sm uppercase">{tenant.ticketHeader || tenant.name}</p>
+                {tenant.legalName && (
+                  <p className="text-[10px] text-neutral-500">{tenant.legalName}</p>
+                )}
+                {tenant.invoiceSlogan && (
+                  <p className="text-[9px] italic text-neutral-400">"{tenant.invoiceSlogan}"</p>
+                )}
+                <p className="text-[10px] text-neutral-600 dark:text-neutral-400 font-bold mt-1">
+                  RUC: {tenant.taxId || "J031000049102"}
+                </p>
+                <p className="text-[10px] text-neutral-500">{tenant.address || "Dirección de la empresa"}</p>
+                <p className="text-[10px] text-neutral-500">{tenant.city || "Chinandega"}, Nicaragua • Tel: {tenant.phone || "+505 2341-2090"}</p>
                 <p className="text-[10px] text-neutral-500 font-bold mt-1">FACTURA #{lastSale.invoiceNumber}</p>
                 <p className="text-[9px] text-neutral-400">{new Date(lastSale.createdAt).toLocaleString("es-NI")}</p>
               </div>
@@ -1358,18 +1369,30 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
 
               {/* Totales, Pago y Vuelto */}
               <div className="pt-2 border-t border-dashed border-neutral-300 dark:border-neutral-700 space-y-1">
-                <div className="flex justify-between text-neutral-500 text-[10px]">
-                  <span>Subtotal:</span>
-                  <span>C$ {lastSale.subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-neutral-500 text-[10px]">
-                  <span>IVA ({tenant.taxPercentage}%):</span>
-                  <span>C$ {lastSale.tax.toFixed(2)}</span>
-                </div>
+                {tenant.showTaxBreakdown !== false && (
+                  <>
+                    <div className="flex justify-between text-neutral-500 text-[10px]">
+                      <span>Subtotal:</span>
+                      <span>C$ {lastSale.subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-neutral-500 text-[10px]">
+                      <span>IVA ({tenant.taxPercentage}%):</span>
+                      <span>C$ {lastSale.tax.toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
+
                 <div className="flex justify-between text-sm font-bold pt-1 border-t border-neutral-200 dark:border-neutral-800">
                   <span>TOTAL FACTURA:</span>
-                  <span className="text-apple-blue">C$ {lastSale.total.toFixed(2)}</span>
+                  <span className="text-apple-blue font-mono font-bold">C$ {lastSale.total.toFixed(2)}</span>
                 </div>
+
+                {tenant.showUsdEquivalence !== false && (
+                  <div className="flex justify-between text-[10px] text-neutral-500 font-mono">
+                    <span>Equiv. Dólares (TC {tenant.exchangeRate}):</span>
+                    <span>$ {(lastSale.total / lastSale.exchangeRate).toFixed(2)} USD</span>
+                  </div>
+                )}
 
                 {/* MÉTODO DE PAGO, CON CUÁNTO SE PAGÓ Y VUELTO */}
                 <div className="pt-2 mt-1 border-t border-dashed border-neutral-300 dark:border-neutral-700 text-[11px] space-y-1">
@@ -1395,12 +1418,16 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
               </div>
 
               {/* Pie de Ticket */}
-              <div className="text-center pt-2 text-[9px] text-neutral-500 border-t border-dashed border-neutral-300 dark:border-neutral-700">
-                <div className="font-mono tracking-widest text-neutral-400 text-xs py-1">
-                  ||||| | |||| |||| || ||||| | ||||
-                </div>
-                <p className="font-mono">{lastSale.invoiceNumber}</p>
-                <p className="mt-1">{tenant.ticketFooter}</p>
+              <div className="text-center pt-2 text-[9px] text-neutral-500 border-t border-dashed border-neutral-300 dark:border-neutral-700 space-y-1">
+                {tenant.showBarcodeOnTicket !== false && (
+                  <div className="py-1">
+                    <div className="font-mono tracking-widest text-neutral-400 text-xs">
+                      ||||| | |||| |||| || ||||| | ||||
+                    </div>
+                    <p className="font-mono text-[8px]">{lastSale.invoiceNumber}</p>
+                  </div>
+                )}
+                <p className="mt-1 text-[10px] text-neutral-600 dark:text-neutral-400 font-sans">{tenant.ticketFooter}</p>
                 <p className="text-[8px] text-neutral-400 mt-0.5">¡Gracias por su compra!</p>
               </div>
             </div>

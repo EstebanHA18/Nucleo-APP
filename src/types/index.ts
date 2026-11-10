@@ -186,9 +186,18 @@ export interface TenantSettings {
   ticketFormat: '58mm' | '80mm' | 'letter';
   ticketHeader: string;
   ticketFooter: string;
+  invoiceSlogan?: string;
+  showTaxBreakdown?: boolean;
+  showUsdEquivalence?: boolean;
+  showBarcodeOnTicket?: boolean;
   isSetupCompleted: boolean;
   monthlyPlanPrice: number;
   planName: 'Starter' | 'Pro' | 'Enterprise';
+  billingCycle?: 'monthly' | 'annual';
+  nextPaymentDate?: string;
+  paymentStatus?: 'active' | 'past_due' | 'trial';
+  adminAssignedBy?: string;
+  planAssignedDate?: string;
 }
 
 export interface DashboardWidget {

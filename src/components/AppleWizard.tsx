@@ -510,62 +510,72 @@ export const AppleWizard: React.FC<AppleWizardProps> = ({ onComplete }) => {
             </div>
           )}
 
-          {/* PASO 4: Módulos Activos (Sin fiados) */}
+          {/* PASO 4: Módulos Asignados por el Administrador */}
           {step === 4 && (
             <div className="space-y-4 animate-fadeIn">
               <div className="text-center max-w-lg mx-auto mb-2">
                 <span className="text-[10px] font-semibold text-apple-blue uppercase tracking-widest block mb-1">
-                  Paso 4 de {totalSteps} • Módulos Activos
+                  Paso 4 de {totalSteps} • Paneles del Sistema
                 </span>
                 <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 dark:text-white">
-                  Selecciona tus módulos
+                  Módulos Asignados por el Administrador
                 </h2>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  Activa únicamente las funciones necesarias (100% ventas al contado, tarjeta o transferencia).
+                  Tu cuenta ha sido aprovisionada por el Administrador de Núcleo ERP con los módulos autorizados para tu plan.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[300px] overflow-y-auto pr-1">
+              {/* Banner informativo de seguridad */}
+              <div className="p-3 rounded-2xl bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700 text-xs text-neutral-600 dark:text-neutral-300 flex items-center gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>
+                  <strong>Aprovisionamiento Central:</strong> La selección de módulos es controlada por el Administrador según tu suscripción contratada ($35.00/mes).
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[280px] overflow-y-auto pr-1">
                 {AVAILABLE_MODULES.map((mod) => {
-                  const isChecked = activeModules.includes(mod.key);
+                  const isAssigned = activeModules.includes(mod.key);
                   return (
                     <div
                       key={mod.key}
-                      onClick={() => toggleModule(mod.key)}
-                      className={`p-3 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                        isChecked
-                          ? "bg-white dark:bg-neutral-800/90 border-apple-blue/50 shadow-sm"
-                          : "bg-neutral-50 dark:bg-neutral-900/40 border-neutral-200 dark:border-neutral-800 opacity-60 hover:opacity-100"
+                      className={`p-3 rounded-2xl border transition-all flex items-center justify-between ${
+                        isAssigned
+                          ? "bg-white dark:bg-neutral-800/90 border-neutral-200/90 dark:border-neutral-700 shadow-sm"
+                          : "bg-neutral-50 dark:bg-neutral-900/40 border-neutral-200/50 dark:border-neutral-800/50 opacity-50"
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                          isChecked ? "bg-apple-blue text-white" : "bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300"
+                          isAssigned ? "bg-apple-blue text-white" : "bg-neutral-200 dark:bg-neutral-700 text-neutral-500"
                         }`}>
-                          <Sliders className="w-3.5 h-3.5" />
+                          <Layers className="w-3.5 h-3.5" />
                         </div>
                         <div>
-                          <h4 className="text-xs font-bold text-neutral-900 dark:text-white">
-                            {mod.name}
-                          </h4>
+                          <div className="flex items-center gap-1.5">
+                            <h4 className="text-xs font-bold text-neutral-900 dark:text-white">
+                              {mod.name}
+                            </h4>
+                            {mod.isCore && (
+                              <span className="text-[8px] font-mono px-1 py-0.2 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-500 font-bold">
+                                CORE
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[10px] text-neutral-500 dark:text-neutral-400 line-clamp-1">
                             {mod.description}
                           </p>
                         </div>
                       </div>
 
-                      {/* iOS Toggle */}
-                      <div
-                        className={`w-10 h-5 rounded-full transition-colors relative shrink-0 p-0.5 ${
-                          isChecked ? "bg-apple-blue" : "bg-neutral-300 dark:bg-neutral-700"
-                        }`}
-                      >
-                        <div
-                          className={`w-4 h-4 rounded-full bg-white shadow-md transform transition-transform ${
-                            isChecked ? "translate-x-5" : "translate-x-0"
-                          }`}
-                        />
-                      </div>
+                      {/* Badge Asignado por Admin */}
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full font-mono shrink-0 ${
+                        isAssigned
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                          : "bg-neutral-200 dark:bg-neutral-800 text-neutral-500"
+                      }`}>
+                        {isAssigned ? "ASIGNADO" : "BLOQUEADO"}
+                      </span>
                     </div>
                   );
                 })}
