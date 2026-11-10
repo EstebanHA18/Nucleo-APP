@@ -23,7 +23,8 @@ import {
   UserCheck, 
   AlertCircle,
   FileText,
-  CheckCircle2
+  CheckCircle2,
+  Bluetooth
 } from "lucide-react";
 import { Product, Customer, CartItem, Sale, TenantSettings, Batch, CashRegisterSession, PendingBill } from "@/types";
 import { 
@@ -34,6 +35,7 @@ import {
   closeCashSession,
   getCurrentUser
 } from "@/lib/offlineStore";
+import { printReceiptViaBluetooth } from "@/lib/bluetoothPrinter";
 
 interface POSTerminalProps {
   tenant: TenantSettings;
@@ -89,6 +91,8 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [lastSale, setLastSale] = useState<Sale | null>(null);
   const [scanFeedback, setScanFeedback] = useState<{ message: string; type: "success" | "warning" } | null>(null);
+  const [isPrintingBt, setIsPrintingBt] = useState(false);
+  const [btPrintMessage, setBtPrintMessage] = useState<{ text: string; success: boolean } | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -497,6 +501,15 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
     setShowReceiptModal(true);
     setCart([]);
     setCashTendered("");
+    setBtPrintMessage(null);
+
+    // Impresión automática por Bluetooth si está habilitada en Ajustes
+    if (tenant.autoPrintBluetooth) {
+      printReceiptViaBluetooth(saleRecord, tenant).catch((err) => {
+        console.warn("Impresión automática por Bluetooth no disponible:", err);
+      });
+    }
+
     onSaleComplete(saleRecord, updatedProducts, updatedCustomers);
   };
 
@@ -1412,6 +1425,17 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
               tenant.ticketFormat === "58mm" ? "max-w-[280px] mx-auto text-[11px]" : "w-full"
             }`}>
               <div className="text-center pb-2 border-b border-dashed border-neutral-300 dark:border-neutral-700 space-y-0.5">
+                {tenant.showLogoOnTicket !== false && tenant.logoUrl && (
+                  <div className="flex justify-center mb-1.5 animate-fadeIn">
+                    <img 
+                      src={tenant.logoUrl} 
+                      alt="Logo" 
+                      className={`object-contain filter grayscale contrast-125 dark:invert ${
+                        tenant.logoSize === "sm" ? "h-9 max-w-[120px]" : tenant.logoSize === "lg" ? "h-16 max-w-[180px]" : "h-12 max-w-[150px]"
+                      }`}
+                    />
+                  </div>
+                )}
                 <p className="font-extrabold text-sm uppercase">{tenant.ticketHeader || tenant.name}</p>
                 {tenant.legalName && (
                   <p className="text-[10px] text-neutral-500">{tenant.legalName}</p>
@@ -1526,19 +1550,51 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
               </div>
             </div>
 
-            <div className="flex gap-2">
+            {/* Notificación de resultado de impresión Bluetooth */}
+            {btPrintMessage && (
+              <div className={`p-2.5 rounded-xl text-center text-xs font-semibold animate-fadeIn ${
+                btPrintMessage.success 
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" 
+                  : "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
+              }`}>
+                {btPrintMessage.text}
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsPrintingBt(true);
+                  setBtPrintMessage(null);
+                  const res = await printReceiptViaBluetooth(lastSale, tenant);
+                  setIsPrintingBt(false);
+                  if (res.success) {
+                    setBtPrintMessage({ text: "¡Factura enviada a la impresora térmica Bluetooth!", success: true });
+                  } else {
+                    setBtPrintMessage({ text: res.error || "No se pudo conectar a la impresora Bluetooth.", success: false });
+                  }
+                }}
+                disabled={isPrintingBt}
+                className="flex-1 py-2.5 px-3 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
+              >
+                <Bluetooth className="w-3.5 h-3.5" />
+                <span>{isPrintingBt ? "Imprimiendo..." : "Imprimir Térmica Bluetooth"}</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-semibold shadow-sm flex items-center justify-center gap-1.5"
+                className="py-2.5 px-3 rounded-xl bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 transition-all"
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span>Imprimir Factura</span>
+                <span>Sistema / PDF</span>
               </button>
+
               <button
                 type="button"
                 onClick={() => setShowReceiptModal(false)}
-                className="py-2.5 px-4 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-semibold hover:bg-neutral-200"
+                className="py-2.5 px-3 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 text-neutral-600 dark:text-neutral-400 text-xs font-semibold hover:bg-neutral-200 dark:hover:bg-neutral-700"
               >
                 Cerrar
               </button>

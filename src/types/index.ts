@@ -194,6 +194,11 @@ export interface TenantSettings {
   showTaxBreakdown?: boolean;
   showUsdEquivalence?: boolean;
   showBarcodeOnTicket?: boolean;
+  logoUrl?: string;
+  showLogoOnTicket?: boolean;
+  logoSize?: 'sm' | 'md' | 'lg';
+  bluetoothPrinterName?: string;
+  autoPrintBluetooth?: boolean;
   isSetupCompleted: boolean;
   monthlyPlanPrice: number;
   planName: 'Starter' | 'Pro' | 'Enterprise';

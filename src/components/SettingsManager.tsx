@@ -22,11 +22,26 @@ import {
   AlertCircle,
   HelpCircle,
   Clock,
-  Barcode
+  Barcode,
+  Bluetooth,
+  Upload,
+  Image as ImageIcon,
+  Trash2,
+  Radio,
+  Smartphone,
+  RefreshCw
 } from "lucide-react";
 import { TenantSettings, ModuleKey } from "@/types";
 import { AVAILABLE_MODULES } from "@/lib/constants";
 import { saveStoredTenant } from "@/lib/offlineStore";
+import { 
+  connectBluetoothPrinter, 
+  disconnectBluetoothPrinter, 
+  getBluetoothPrinterState, 
+  isBluetoothSupported, 
+  printTestReceiptViaBluetooth, 
+  BluetoothPrinterState 
+} from "@/lib/bluetoothPrinter";
 
 interface SettingsManagerProps {
   tenant: TenantSettings;
@@ -56,9 +71,84 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
   const [showUsdEquivalence, setShowUsdEquivalence] = useState<boolean>(tenant.showUsdEquivalence !== false);
   const [showBarcodeOnTicket, setShowBarcodeOnTicket] = useState<boolean>(tenant.showBarcodeOnTicket !== false);
 
+  // Estados de Logotipo del Comercio
+  const [logoUrl, setLogoUrl] = useState<string>(tenant.logoUrl || "");
+  const [showLogoOnTicket, setShowLogoOnTicket] = useState<boolean>(tenant.showLogoOnTicket !== false);
+  const [logoSize, setLogoSize] = useState<"sm" | "md" | "lg">(tenant.logoSize || "md");
+
+  // Estados de Impresora Térmica Bluetooth
+  const [btState, setBtState] = useState<BluetoothPrinterState>(getBluetoothPrinterState());
+  const [isBtConnecting, setIsBtConnecting] = useState(false);
+  const [isBtTesting, setIsBtTesting] = useState(false);
+  const [btMessage, setBtMessage] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
+  const [autoPrintBluetooth, setAutoPrintBluetooth] = useState<boolean>(tenant.autoPrintBluetooth || false);
+
   // Estados de Negocio
   const [exchangeRate, setExchangeRate] = useState(tenant.exchangeRate || 36.62);
   const [taxPercentage, setTaxPercentage] = useState(tenant.taxPercentage || 15.0);
+
+  // Carga de archivo de logotipo (Base64)
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Por favor selecciona un archivo de imagen válido (PNG, JPG, SVG o WebP).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      setLogoUrl(result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveLogo = () => {
+    setLogoUrl("");
+  };
+
+  // Conectar y emparejar impresora Bluetooth
+  const handleConnectBluetooth = async () => {
+    setIsBtConnecting(true);
+    setBtMessage(null);
+    const res = await connectBluetoothPrinter();
+    setIsBtConnecting(false);
+    if (res.success) {
+      setBtState(getBluetoothPrinterState());
+      setBtMessage({ text: `Impresora "${res.deviceName}" vinculada con éxito.`, type: "success" });
+    } else {
+      setBtMessage({ text: res.error || "No se pudo vincular la impresora.", type: "error" });
+    }
+  };
+
+  // Desconectar impresora Bluetooth
+  const handleDisconnectBluetooth = async () => {
+    await disconnectBluetoothPrinter();
+    setBtState(getBluetoothPrinterState());
+    setBtMessage({ text: "Impresora Bluetooth desvinculada.", type: "info" });
+  };
+
+  // Probar impresión en impresora Bluetooth
+  const handleTestBluetoothPrint = async () => {
+    setIsBtTesting(true);
+    setBtMessage(null);
+    const res = await printTestReceiptViaBluetooth({
+      ...tenant,
+      ticketHeader,
+      legalName,
+      taxId,
+      phone,
+      address,
+      city,
+      ticketFormat,
+    });
+    setIsBtTesting(false);
+    if (res.success) {
+      setBtMessage({ text: "¡Ticket de prueba enviado a la impresora Bluetooth!", type: "success" });
+    } else {
+      setBtMessage({ text: res.error || "Error al imprimir ticket de prueba.", type: "error" });
+    }
+  };
 
   // Guardar cambios
   const handleSaveSettings = () => {
@@ -77,6 +167,11 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
       showTaxBreakdown,
       showUsdEquivalence,
       showBarcodeOnTicket,
+      logoUrl,
+      showLogoOnTicket,
+      logoSize,
+      autoPrintBluetooth,
+      bluetoothPrinterName: btState.deviceName || undefined,
       exchangeRate,
       taxPercentage,
       // Asegurar campos de membresía
@@ -194,6 +289,108 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
           
           {/* Formulario de Configuración del Ticket */}
           <div className="lg:col-span-7 space-y-4">
+
+            {/* Tarjeta 1: Logotipo del Comercio & Marca */}
+            <div className="p-5 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-neutral-200/80 dark:border-neutral-800">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-apple-blue" />
+                  <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
+                    Logotipo del Comercio
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-medium text-neutral-400">Mostrar en Ticket</span>
+                  <div 
+                    onClick={() => setShowLogoOnTicket(!showLogoOnTicket)}
+                    className="cursor-pointer"
+                  >
+                    <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${showLogoOnTicket ? "bg-apple-blue" : "bg-neutral-300 dark:bg-neutral-600"}`}>
+                      <div className={`w-3 h-3 rounded-full bg-white transition-transform ${showLogoOnTicket ? "translate-x-4" : "translate-x-0"}`} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
+                {/* Visualizador del Logo */}
+                <div className="sm:col-span-4 flex flex-col items-center justify-center p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-dashed border-neutral-200 dark:border-neutral-700 min-h-[110px]">
+                  {logoUrl ? (
+                    <div className="space-y-2 text-center">
+                      <img 
+                        src={logoUrl} 
+                        alt="Logotipo del comercio" 
+                        className={`object-contain mx-auto filter grayscale contrast-125 dark:invert ${
+                          logoSize === "sm" ? "h-10" : logoSize === "lg" ? "h-16" : "h-12"
+                        }`}
+                      />
+                      <span className="text-[10px] text-neutral-400 block font-mono">Simulación Térmica B/N</span>
+                    </div>
+                  ) : (
+                    <div className="text-center text-neutral-400 space-y-1">
+                      <ImageIcon className="w-8 h-8 mx-auto stroke-1 text-neutral-300 dark:text-neutral-600" />
+                      <p className="text-[11px] font-medium">Sin logotipo</p>
+                      <p className="text-[9px] text-neutral-400">PNG, JPG, SVG o WebP</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Controles de Carga y Tamaño */}
+                <div className="sm:col-span-8 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-semibold shadow-xs transition-all">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{logoUrl ? "Cambiar Imagen" : "Subir Logotipo"}</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handleLogoUpload} 
+                        className="hidden" 
+                      />
+                    </label>
+
+                    {logoUrl && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveLogo}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 text-xs font-semibold transition-all"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Quitar Logo</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-neutral-500 mb-1">
+                      Tamaño de Impresión en Ticket:
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5 text-xs">
+                      {(["sm", "md", "lg"] as const).map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setLogoSize(s)}
+                          className={`py-1.5 px-2 rounded-xl border text-center font-medium transition-all ${
+                            logoSize === s
+                              ? "bg-apple-blue text-white border-apple-blue"
+                              : "bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700"
+                          }`}
+                        >
+                          {s === "sm" ? "Pequeño" : s === "md" ? "Mediano" : "Grande"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-neutral-400 leading-tight">
+                    El logo se optimiza automáticamente en escala de grises de alto contraste para una impresión clara en tickets de papel térmico.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Tarjeta 2: Datos del Encabezado & Emisor */}
             <div className="p-5 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-neutral-200/80 dark:border-neutral-800">
                 <div className="flex items-center gap-2">
@@ -316,6 +513,113 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
               </div>
             </div>
 
+            {/* Tarjeta 3: Configuración de Impresora Bluetooth (Térmica 58mm / 80mm) */}
+            <div className="p-5 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-neutral-200/80 dark:border-neutral-800">
+                <div className="flex items-center gap-2">
+                  <Bluetooth className="w-4 h-4 text-apple-blue" />
+                  <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
+                    Impresora Térmica Bluetooth (ESC/POS)
+                  </h3>
+                </div>
+                <div className="flex items-center gap-1.5 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 rounded-full">
+                  <span className={`w-2 h-2 rounded-full ${
+                    btState.isConnected 
+                      ? "bg-emerald-500 animate-pulse" 
+                      : btState.deviceName 
+                      ? "bg-blue-500" 
+                      : "bg-neutral-400"
+                  }`} />
+                  <span className="text-[10px] font-mono font-bold text-neutral-700 dark:text-neutral-300">
+                    {btState.isConnected 
+                      ? `En Línea: ${btState.deviceName}` 
+                      : btState.deviceName 
+                      ? `Guardada: ${btState.deviceName}` 
+                      : "Sin Vincular"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleConnectBluetooth}
+                    disabled={isBtConnecting}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-semibold shadow-xs transition-all disabled:opacity-50"
+                  >
+                    <Bluetooth className="w-3.5 h-3.5" />
+                    <span>{isBtConnecting ? "Buscando dispositivos..." : btState.deviceName ? "Reconectar / Cambiar Impresora" : "Emparejar Impresora Bluetooth"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleTestBluetoothPrint}
+                    disabled={isBtTesting}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-semibold transition-all disabled:opacity-50"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>{isBtTesting ? "Imprimiendo..." : "Imprimir Ticket de Prueba"}</span>
+                  </button>
+
+                  {btState.deviceName && (
+                    <button
+                      type="button"
+                      onClick={handleDisconnectBluetooth}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-neutral-400 hover:text-red-500 text-xs transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Desvincular</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Notificación de estado interactivo */}
+                {btMessage && (
+                  <div className={`p-3 rounded-2xl text-xs flex items-center gap-2 animate-fadeIn ${
+                    btMessage.type === "success" 
+                      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20" 
+                      : btMessage.type === "error"
+                      ? "bg-red-500/10 text-red-700 dark:text-red-300 border border-red-500/20"
+                      : "bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20"
+                  }`}>
+                    <Radio className="w-4 h-4 shrink-0" />
+                    <span>{btMessage.text}</span>
+                  </div>
+                )}
+
+                {/* Toggle de impresión automática */}
+                <div 
+                  onClick={() => setAutoPrintBluetooth(!autoPrintBluetooth)}
+                  className="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700 cursor-pointer flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="w-4 h-4 text-apple-blue" />
+                    <div>
+                      <span className="text-xs font-bold text-neutral-900 dark:text-white block">
+                        Impresión Automática por Bluetooth al Cobrar
+                      </span>
+                      <span className="text-[10px] text-neutral-400">
+                        Envía el comando directo a la impresora portátil al completar una venta en Caja
+                      </span>
+                    </div>
+                  </div>
+                  <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${autoPrintBluetooth ? "bg-apple-blue" : "bg-neutral-300 dark:bg-neutral-600"}`}>
+                    <div className={`w-3 h-3 rounded-full bg-white transition-transform ${autoPrintBluetooth ? "translate-x-4" : "translate-x-0"}`} />
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-neutral-100/60 dark:bg-neutral-800/40 text-[10px] text-neutral-500 dark:text-neutral-400 space-y-1">
+                  <p className="font-semibold text-neutral-700 dark:text-neutral-300">
+                    💡 Compatibilidad Térmica Bluetooth:
+                  </p>
+                  <p>
+                    Funciona en Google Chrome, Microsoft Edge y navegadores Android/Windows con Web Bluetooth. Soporta todas las impresoras térmicas portátiles ESC/POS estándar (GOOJPRT, PeriPage, MPT-II, POS-58, Xprinter, etc.).
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {/* Agregados y Opciones Visuales */}
             <div className="p-5 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-4">
               <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
@@ -426,6 +730,17 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
             <div className="w-full max-w-[340px] mx-auto p-5 rounded-2xl bg-[#fafafa] dark:bg-[#111215] font-mono text-xs border border-dashed border-neutral-300 dark:border-neutral-700 shadow-xl space-y-2.5 text-neutral-900 dark:text-neutral-100">
               {/* Encabezado */}
               <div className="text-center pb-2 border-b border-dashed border-neutral-300 dark:border-neutral-700 space-y-0.5">
+                {showLogoOnTicket && logoUrl && (
+                  <div className="flex justify-center mb-1.5 animate-fadeIn">
+                    <img 
+                      src={logoUrl} 
+                      alt="Logo Ticket" 
+                      className={`object-contain filter grayscale contrast-125 dark:invert ${
+                        logoSize === "sm" ? "h-9 max-w-[120px]" : logoSize === "lg" ? "h-16 max-w-[180px]" : "h-12 max-w-[150px]"
+                      }`}
+                    />
+                  </div>
+                )}
                 <h4 className="font-extrabold text-sm uppercase tracking-tight">
                   {ticketHeader || "NOMBRE DE TU EMPRESA"}
                 </h4>
