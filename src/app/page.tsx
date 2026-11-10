@@ -15,7 +15,7 @@ import { DashboardBuilder } from "@/components/DashboardBuilder";
 import { CommandPalette } from "@/components/CommandPalette";
 import { VeterinaryManager } from "@/components/VeterinaryManager";
 import { ClinicalDentalManager } from "@/components/ClinicalDentalManager";
-import { TenantSettings, Product, Customer, Sale, AppUser, PetPatient, ClinicalPatient } from "@/types";
+import { TenantSettings, Product, Customer, Sale, AppUser, PetPatient, ClinicalPatient, PendingBill } from "@/types";
 import { 
   getStoredTenant, 
   saveStoredTenant, 
@@ -27,7 +27,9 @@ import {
   getCurrentUser,
   saveCurrentUser,
   getStoredVetPatients,
-  getStoredClinicalPatients
+  getStoredClinicalPatients,
+  saveStoredVetPatients,
+  saveStoredClinicalPatients
 } from "@/lib/offlineStore";
 
 export default function Home() {
@@ -46,6 +48,7 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [vetPatients, setVetPatients] = useState<PetPatient[]>([]);
   const [clinicalPatients, setClinicalPatients] = useState<ClinicalPatient[]>([]);
+  const [pendingBill, setPendingBill] = useState<PendingBill | null>(null);
 
   // Initialize
   useEffect(() => {
@@ -134,6 +137,44 @@ export default function Home() {
     setSales((prev) => [sale, ...prev]);
     setProducts(updatedProducts);
     setCustomers(updatedCustomers);
+
+    // Si la venta correspondió al cobro de una consulta médica o veterinaria, marcarla como cobrada
+    if (pendingBill) {
+      if (pendingBill.source === "veterinary") {
+        setVetPatients((prev) => {
+          const updated = prev.map((pat) => {
+            if (pat.id === pendingBill.patientId) {
+              return {
+                ...pat,
+                consultations: pat.consultations.map((c) =>
+                  c.id === pendingBill.id ? { ...c, paymentStatus: "paid" as const } : c
+                ),
+              };
+            }
+            return pat;
+          });
+          saveStoredVetPatients(updated);
+          return updated;
+        });
+      } else if (pendingBill.source === "clinical") {
+        setClinicalPatients((prev) => {
+          const updated = prev.map((pat) => {
+            if (pat.id === pendingBill.patientId) {
+              return {
+                ...pat,
+                consultations: pat.consultations.map((c) =>
+                  c.id === pendingBill.id ? { ...c, paymentStatus: "paid" as const } : c
+                ),
+              };
+            }
+            return pat;
+          });
+          saveStoredClinicalPatients(updated);
+          return updated;
+        });
+      }
+      setPendingBill(null);
+    }
   };
 
   const handleUpdateTenantSettings = (updated: TenantSettings) => {
@@ -242,6 +283,8 @@ export default function Home() {
                 products={products}
                 customers={customers}
                 onSaleComplete={handleSaleComplete}
+                pendingBill={pendingBill}
+                onClearPendingBill={() => setPendingBill(null)}
               />
             )}
 
@@ -297,6 +340,11 @@ export default function Home() {
                 tenant={tenant}
                 patients={vetPatients}
                 setPatients={setVetPatients}
+                products={products}
+                onBillConsultation={(bill) => {
+                  setPendingBill(bill);
+                  setActiveView("pos");
+                }}
                 onNavigateToPOS={() => setActiveView("pos")}
               />
             )}
@@ -307,6 +355,11 @@ export default function Home() {
                 tenant={tenant}
                 patients={clinicalPatients}
                 setPatients={setClinicalPatients}
+                products={products}
+                onBillConsultation={(bill) => {
+                  setPendingBill(bill);
+                  setActiveView("pos");
+                }}
                 onNavigateToPOS={() => setActiveView("pos")}
               />
             )}

@@ -241,6 +241,29 @@ export interface VeterinaryDeworming {
   status: 'applied' | 'pending' | 'overdue';
 }
 
+export interface ConsultationMedicineItem {
+  productId: string;
+  name: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+}
+
+export interface PendingBill {
+  id: string; // Consultation ID
+  source: 'veterinary' | 'clinical';
+  patientId: string;
+  patientName: string;
+  ownerName?: string;
+  customerTaxId?: string;
+  customerPhone?: string;
+  concept: string;
+  consultationFee: number;
+  items: ConsultationMedicineItem[];
+  total: number;
+}
+
 export interface VeterinaryConsultation {
   id: string;
   date: string;
@@ -257,7 +280,10 @@ export interface VeterinaryConsultation {
   treatment: string;
   prescription?: string;
   veterinarianName: string;
+  consultationFee: number;
+  medicinesUsed?: ConsultationMedicineItem[];
   cost: number;
+  paymentStatus?: 'pending' | 'paid';
   notes?: string;
 }
 
@@ -331,7 +357,10 @@ export interface ClinicalConsultation {
   treatment: string;
   prescription?: string;
   doctorName: string;
+  consultationFee: number;
+  medicinesUsed?: ConsultationMedicineItem[];
   cost: number;
+  paymentStatus?: 'pending' | 'paid';
   nextAppointmentDate?: string;
   teethInvolved?: number[];
 }

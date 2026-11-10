@@ -22,9 +22,10 @@ import {
   Coins, 
   UserCheck, 
   AlertCircle,
-  FileText
+  FileText,
+  CheckCircle2
 } from "lucide-react";
-import { Product, Customer, CartItem, Sale, TenantSettings, Batch, CashRegisterSession } from "@/types";
+import { Product, Customer, CartItem, Sale, TenantSettings, Batch, CashRegisterSession, PendingBill } from "@/types";
 import { 
   recordSaleLocally, 
   getBatchExpirationStatus, 
@@ -39,6 +40,8 @@ interface POSTerminalProps {
   products: Product[];
   customers: Customer[];
   onSaleComplete: (sale: Sale, updatedProducts: Product[], updatedCustomers: Customer[]) => void;
+  pendingBill?: PendingBill | null;
+  onClearPendingBill?: () => void;
 }
 
 export const POSTerminal: React.FC<POSTerminalProps> = ({
@@ -46,6 +49,8 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
   products,
   customers,
   onSaleComplete,
+  pendingBill,
+  onClearPendingBill,
 }) => {
   const currentUser = getCurrentUser();
 
@@ -114,6 +119,69 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
   useEffect(() => {
     setCashSession(getCurrentCashSession());
   }, []);
+
+  // Prellenar carrito y datos si viene de cobrar una consulta médica/veterinaria
+  useEffect(() => {
+    if (pendingBill) {
+      const itemsToAdd: CartItem[] = [];
+
+      // 1. Servicio de consulta / honorarios
+      if (pendingBill.consultationFee > 0) {
+        itemsToAdd.push({
+          product: {
+            id: `serv-${pendingBill.id}`,
+            sku: "SERV-CONSULTA",
+            name: pendingBill.concept,
+            category: pendingBill.source === "veterinary" ? "Servicios Veterinarios" : "Servicios Médicos / Dentales",
+            unit: "Servicio",
+            costPrice: 0,
+            salePrice: pendingBill.consultationFee,
+            stock: 999,
+            minStock: 0,
+          },
+          quantity: 1,
+          unit: "Servicio",
+          unitPrice: pendingBill.consultationFee,
+          subtotal: pendingBill.consultationFee,
+        });
+      }
+
+      // 2. Fármacos e insumos utilizados
+      (pendingBill.items || []).forEach((item) => {
+        const prod = products.find((p) => p.id === item.productId) || {
+          id: item.productId,
+          sku: "MED-INSUMO",
+          name: item.name,
+          category: "Farmacia / Insumos",
+          unit: item.unit,
+          costPrice: 0,
+          salePrice: item.unitPrice,
+          stock: 99,
+          minStock: 0,
+        };
+
+        itemsToAdd.push({
+          product: prod,
+          quantity: item.quantity,
+          unit: item.unit,
+          unitPrice: item.unitPrice,
+          subtotal: item.subtotal,
+        });
+      });
+
+      setCart(itemsToAdd);
+
+      // 3. Prellenar cliente para factura
+      const clientName = pendingBill.ownerName || pendingBill.patientName;
+      if (clientName) {
+        setInvoiceCustomerName(clientName);
+        setShowCustomClientInputs(true);
+      }
+      if (pendingBill.customerTaxId) {
+        setInvoiceCustomerTaxId(pendingBill.customerTaxId);
+      }
+    }
+  }, [pendingBill, products]);
 
   // Filtrar productos
   const filteredProducts = products.filter((p) => {
@@ -690,6 +758,32 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
                 {cart.length} {cart.length === 1 ? "artículo" : "artículos"}
               </span>
             </div>
+
+            {/* Banner si hay cobro de consulta clínica o veterinaria activa */}
+            {pendingBill && (
+              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs flex items-center justify-between animate-fadeIn">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <div>
+                    <span className="font-bold text-neutral-900 dark:text-white block text-xs">
+                      Cobro de Consulta: {pendingBill.patientName}
+                    </span>
+                    <span className="text-[10px] text-neutral-500 font-mono">
+                      {pendingBill.concept} • {pendingBill.items.length} fármacos/insumos incluidos
+                    </span>
+                  </div>
+                </div>
+                {onClearPendingBill && (
+                  <button
+                    type="button"
+                    onClick={onClearPendingBill}
+                    className="text-[10px] font-bold text-apple-red hover:underline px-2 py-0.5 rounded bg-apple-red/10"
+                  >
+                    Descartar
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Datos del Cliente: Nombre & RUC personalizable */}
             <div className="space-y-2 p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/60 dark:border-neutral-700/60">

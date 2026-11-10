@@ -154,6 +154,13 @@ export const getStoredProducts = (): Product[] => {
   } else {
     try {
       prods = JSON.parse(raw);
+      // Auto-fusionar nuevos insumos y fármacos si no existen aún en localStorage
+      const existingIds = new Set(prods.map((p) => p.id));
+      const missing = INITIAL_PRODUCTS.filter((p) => !existingIds.has(p.id));
+      if (missing.length > 0) {
+        prods = [...prods, ...missing];
+        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(prods));
+      }
     } catch {
       prods = INITIAL_PRODUCTS;
     }

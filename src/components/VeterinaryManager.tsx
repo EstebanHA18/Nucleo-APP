@@ -23,7 +23,11 @@ import {
   ShieldAlert,
   Sparkles,
   Activity,
-  Edit3
+  Edit3,
+  Pill,
+  Trash2,
+  DollarSign,
+  Check
 } from "lucide-react";
 import { 
   PetPatient, 
@@ -33,7 +37,10 @@ import {
   TenantSettings, 
   PetSpecies, 
   PetGender, 
-  PetReproductiveStatus 
+  PetReproductiveStatus,
+  Product,
+  ConsultationMedicineItem,
+  PendingBill
 } from "@/types";
 import { saveStoredVetPatients } from "@/lib/offlineStore";
 
@@ -41,6 +48,8 @@ interface VeterinaryManagerProps {
   tenant: TenantSettings;
   patients: PetPatient[];
   setPatients: React.Dispatch<React.SetStateAction<PetPatient[]>>;
+  products: Product[];
+  onBillConsultation: (bill: PendingBill) => void;
   onNavigateToPOS?: () => void;
 }
 
@@ -48,6 +57,8 @@ export const VeterinaryManager: React.FC<VeterinaryManagerProps> = ({
   tenant,
   patients,
   setPatients,
+  products,
+  onBillConsultation,
   onNavigateToPOS,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -60,6 +71,11 @@ export const VeterinaryManager: React.FC<VeterinaryManagerProps> = ({
   const [showNewConsultationModal, setShowNewConsultationModal] = useState(false);
   const [showNewVaccineModal, setShowNewVaccineModal] = useState(false);
   const [showNewDewormingModal, setShowNewDewormingModal] = useState(false);
+
+  // Medicamentos seleccionados para la consulta actual
+  const [consultationMedicines, setConsultationMedicines] = useState<ConsultationMedicineItem[]>([]);
+  const [selectedMedicineId, setSelectedMedicineId] = useState<string>("");
+  const [selectedMedicineQty, setSelectedMedicineQty] = useState<number>(1);
 
   // Estados de formularios
   const [newPatientData, setNewPatientData] = useState({
@@ -178,10 +194,51 @@ export const VeterinaryManager: React.FC<VeterinaryManagerProps> = ({
     setShowNewPatientModal(false);
   };
 
+  // Manejo de medicamentos añadidos a la consulta
+  const handleAddMedicineToConsultation = () => {
+    if (!selectedMedicineId) return;
+    const prod = products.find((p) => p.id === selectedMedicineId);
+    if (!prod) return;
+
+    const qty = Number(selectedMedicineQty) || 1;
+    const existingIndex = consultationMedicines.findIndex((m) => m.productId === prod.id);
+
+    if (existingIndex >= 0) {
+      const updated = [...consultationMedicines];
+      updated[existingIndex].quantity += qty;
+      updated[existingIndex].subtotal = updated[existingIndex].quantity * updated[existingIndex].unitPrice;
+      setConsultationMedicines(updated);
+    } else {
+      setConsultationMedicines([
+        ...consultationMedicines,
+        {
+          productId: prod.id,
+          name: prod.name,
+          unit: prod.unit,
+          quantity: qty,
+          unitPrice: prod.salePrice,
+          subtotal: qty * prod.salePrice,
+        },
+      ]);
+    }
+
+    setSelectedMedicineId("");
+    setSelectedMedicineQty(1);
+  };
+
+  const handleRemoveMedicine = (index: number) => {
+    setConsultationMedicines(consultationMedicines.filter((_, i) => i !== index));
+  };
+
+  const medicinesSubtotal = consultationMedicines.reduce((acc, m) => acc + m.subtotal, 0);
+
   // Guardar nueva consulta
   const handleAddConsultation = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activePatient || !newConsultationData.reason.trim()) return;
+
+    const fee = Number(newConsultationData.cost) || 0;
+    const totalCost = fee + medicinesSubtotal;
 
     const newConsult: VeterinaryConsultation = {
       id: `cons-${Date.now()}`,
@@ -199,7 +256,10 @@ export const VeterinaryManager: React.FC<VeterinaryManagerProps> = ({
       treatment: newConsultationData.treatment.trim(),
       prescription: newConsultationData.prescription.trim() || undefined,
       veterinarianName: newConsultationData.veterinarianName.trim(),
-      cost: Number(newConsultationData.cost) || 0,
+      consultationFee: fee,
+      medicinesUsed: consultationMedicines,
+      cost: totalCost,
+      paymentStatus: "pending",
       notes: newConsultationData.notes.trim() || undefined,
     };
 
@@ -216,6 +276,7 @@ export const VeterinaryManager: React.FC<VeterinaryManagerProps> = ({
     setPatients(updatedAll);
     saveStoredVetPatients(updatedAll);
     setActivePatient(updatedPatient);
+    setConsultationMedicines([]);
     setShowNewConsultationModal(false);
   };
 
@@ -636,6 +697,66 @@ export const VeterinaryManager: React.FC<VeterinaryManagerProps> = ({
                                 {cons.prescription}
                               </div>
                             )}
+
+                            {/* Insumos y Medicamentos de Inventario utilizados */}
+                            {cons.medicinesUsed && cons.medicinesUsed.length > 0 && (
+                              <div className="p-2.5 rounded-xl bg-white dark:bg-neutral-800/80 border border-neutral-200/80 dark:border-neutral-700/80 space-y-1.5 text-xs">
+                                <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider block">
+                                  📦 Medicamentos de Inventario Aplicados:
+                                </span>
+                                <div className="space-y-1">
+                                  {cons.medicinesUsed.map((m, idx) => (
+                                    <div key={idx} className="flex justify-between items-center text-[11px]">
+                                      <span className="text-neutral-700 dark:text-neutral-300">
+                                        • {m.name} ({m.quantity} {m.unit})
+                                      </span>
+                                      <span className="font-mono font-semibold text-neutral-800 dark:text-neutral-200">
+                                        C$ {m.subtotal.toFixed(2)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Estado de Cobro y Botón de Pago en POS */}
+                            <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                                  cons.paymentStatus === "paid"
+                                    ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                                    : "bg-apple-orange/10 text-apple-orange border border-apple-orange/30 animate-pulse"
+                                }`}>
+                                  {cons.paymentStatus === "paid" ? "✓ COBRADO EN CAJA" : "⏳ PENDIENTE DE COBRO"}
+                                </span>
+                                <span className="text-[11px] font-mono text-neutral-500">
+                                  (Honorarios: C$ {(cons.consultationFee || cons.cost).toFixed(2)})
+                                </span>
+                              </div>
+
+                              {cons.paymentStatus !== "paid" && onBillConsultation && (
+                                <button
+                                  type="button"
+                                  onClick={() => onBillConsultation({
+                                    id: cons.id,
+                                    source: "veterinary",
+                                    patientId: activePatient.id,
+                                    patientName: activePatient.name,
+                                    ownerName: activePatient.ownerName,
+                                    customerTaxId: activePatient.ownerDni,
+                                    customerPhone: activePatient.ownerPhone,
+                                    concept: `Consulta Veterinaria - ${activePatient.name}`,
+                                    consultationFee: cons.consultationFee || cons.cost,
+                                    items: cons.medicinesUsed || [],
+                                    total: cons.cost,
+                                  })}
+                                  className="px-3.5 py-1.5 rounded-full bg-apple-green hover:bg-apple-green/90 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+                                >
+                                  <Receipt className="w-3.5 h-3.5" />
+                                  <span>Cobrar en Caja (C$ {cons.cost.toFixed(2)})</span>
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1066,6 +1187,94 @@ export const VeterinaryManager: React.FC<VeterinaryManagerProps> = ({
                 />
               </div>
 
+              {/* Sección Interactiva: Fármacos e Insumos de Inventario */}
+              <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/80 dark:border-neutral-700/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[11px] text-apple-blue uppercase tracking-wider font-mono flex items-center gap-1.5">
+                    <Pill className="w-3.5 h-3.5" />
+                    Medicamentos e Insumos Usados (Descuentan Stock)
+                  </span>
+                  <span className="text-[10px] text-neutral-400 font-mono">
+                    Catálogo de Bodega
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-12 gap-2">
+                  <div className="col-span-7">
+                    <select
+                      value={selectedMedicineId}
+                      onChange={(e) => setSelectedMedicineId(e.target.value)}
+                      className="w-full p-2 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs text-neutral-800 dark:text-neutral-200"
+                    >
+                      <option value="">-- Seleccionar fármaco o insumo --</option>
+                      {products.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.unit}) • Stock: {p.stock} • C$ {p.salePrice.toFixed(2)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Cant."
+                      value={selectedMedicineQty}
+                      onChange={(e) => setSelectedMedicineQty(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full p-2 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-mono text-center text-neutral-800 dark:text-neutral-200"
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <button
+                      type="button"
+                      onClick={handleAddMedicineToConsultation}
+                      className="w-full py-2 px-2 rounded-xl bg-apple-blue text-white text-xs font-semibold hover:bg-apple-blue-hover transition-all flex items-center justify-center gap-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Agregar</span>
+                    </button>
+                  </div>
+                </div>
+
+                {consultationMedicines.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    {consultationMedicines.map((m, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200/80 dark:border-neutral-700/80 text-xs"
+                      >
+                        <div>
+                          <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                            {m.name}
+                          </span>
+                          <span className="text-[11px] text-neutral-400 font-mono ml-2">
+                            {m.quantity} {m.unit} x C$ {m.unitPrice.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-neutral-900 dark:text-white">
+                            C$ {m.subtotal.toFixed(2)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMedicine(idx)}
+                            className="p-1 rounded-lg text-neutral-400 hover:text-apple-red transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between text-xs pt-1 px-1 font-mono">
+                      <span className="text-neutral-500">Subtotal Fármacos:</span>
+                      <span className="font-bold text-apple-blue">
+                        C$ {medicinesSubtotal.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-neutral-600 dark:text-neutral-400 mb-1">Veterinario Tratante</label>
@@ -1077,7 +1286,7 @@ export const VeterinaryManager: React.FC<VeterinaryManagerProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-neutral-600 dark:text-neutral-400 mb-1">Costo de Consulta (C$)</label>
+                  <label className="block text-neutral-600 dark:text-neutral-400 mb-1">Honorarios / Consulta (C$)</label>
                   <input
                     type="number"
                     value={newConsultationData.cost}
@@ -1085,6 +1294,16 @@ export const VeterinaryManager: React.FC<VeterinaryManagerProps> = ({
                     className="w-full p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 font-mono font-bold text-apple-green"
                   />
                 </div>
+              </div>
+
+              {/* Total Final de Consulta */}
+              <div className="p-3 rounded-2xl bg-apple-green/10 border border-apple-green/30 flex items-center justify-between text-xs font-mono">
+                <span className="text-neutral-700 dark:text-neutral-300 font-semibold">
+                  TOTAL A COBRAR EN CAJA:
+                </span>
+                <span className="text-base font-extrabold text-apple-green">
+                  C$ {(Number(newConsultationData.cost) + medicinesSubtotal).toFixed(2)}
+                </span>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-200 dark:border-neutral-800">
