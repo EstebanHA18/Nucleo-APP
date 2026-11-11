@@ -155,7 +155,7 @@ export interface OwnerProfile {
   pinCode?: string;
 }
 
-export type UserRole = 'owner' | 'cashier' | 'inventory_clerk' | 'supervisor' | 'custom';
+export type UserRole = 'superadmin' | 'owner' | 'cashier' | 'inventory_clerk' | 'supervisor' | 'custom';
 
 export interface AppUser {
   id: string;
@@ -164,11 +164,13 @@ export interface AppUser {
   phone?: string;
   email?: string;
   pinCode: string;
+  password?: string;
   role: UserRole;
   roleLabel: string;
   allowedModules: ModuleKey[];
   active: boolean;
   createdAt: string;
+  tenantId?: string;
 }
 
 export interface TenantSettings {
@@ -207,6 +209,13 @@ export interface TenantSettings {
   paymentStatus?: 'active' | 'past_due' | 'trial';
   adminAssignedBy?: string;
   planAssignedDate?: string;
+  createdAt?: string;
+  billingCutDay?: number; // Día 10 de corte
+  billingDueDay?: number; // Día 5 de vencimiento de pago
+  proRatedFirstMonthAmount?: number;
+  proRatedDays?: number;
+  loginUsername?: string;
+  loginPassword?: string;
 }
 
 export interface DashboardWidget {

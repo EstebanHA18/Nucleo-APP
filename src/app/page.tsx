@@ -15,10 +15,13 @@ import { DashboardBuilder } from "@/components/DashboardBuilder";
 import { CommandPalette } from "@/components/CommandPalette";
 import { VeterinaryManager } from "@/components/VeterinaryManager";
 import { ClinicalDentalManager } from "@/components/ClinicalDentalManager";
+import { LandingAndLogin } from "@/components/LandingAndLogin";
 import { TenantSettings, Product, Customer, Sale, AppUser, PetPatient, ClinicalPatient, PendingBill } from "@/types";
 import { 
   getStoredTenant, 
   saveStoredTenant, 
+  getStoredTenantsList,
+  saveStoredTenantsList,
   getStoredProducts, 
   getStoredCustomers, 
   getStoredSales,
@@ -34,6 +37,7 @@ import {
 
 export default function Home() {
   const [tenant, setTenant] = useState<TenantSettings | null>(null);
+  const [tenants, setTenants] = useState<TenantSettings[]>([]);
   const [showWizard, setShowWizard] = useState(false);
   const [activeView, setActiveView] = useState<string>("spatial");
   const [darkMode, setDarkMode] = useState<boolean>(true);
@@ -60,13 +64,12 @@ export default function Home() {
       window.addEventListener("online", handleOnline);
       window.addEventListener("offline", handleOffline);
 
-      // Load tenant
-      const storedTenant = getStoredTenant();
-      if (!storedTenant || !storedTenant.isSetupCompleted) {
-        setShowWizard(true);
-      } else {
-        setTenant(storedTenant);
-      }
+      // Cargar lista de negocios administrados
+      const storedTenants = getStoredTenantsList();
+      setTenants(storedTenants);
+
+      const storedTenant = getStoredTenant() || storedTenants[0];
+      setTenant(storedTenant);
 
       setProducts(getStoredProducts());
       setCustomers(getStoredCustomers());
@@ -80,11 +83,15 @@ export default function Home() {
       const activeUser = getCurrentUser(loadedUsers);
       setCurrentUser(activeUser);
 
-      // Si el usuario actual no es dueño, llevarlo a su vista permitida
-      if (activeUser.role === "cashier") {
-        setActiveView("pos");
-      } else if (activeUser.role === "inventory_clerk") {
-        setActiveView("inventory");
+      // Si el usuario actual no es dueño ni superadmin, llevarlo a su vista permitida
+      if (activeUser) {
+        if (activeUser.role === "superadmin") {
+          setActiveView("terminal");
+        } else if (activeUser.role === "cashier") {
+          setActiveView("pos");
+        } else if (activeUser.role === "inventory_clerk") {
+          setActiveView("inventory");
+        }
       }
 
       return () => {
@@ -207,6 +214,42 @@ export default function Home() {
     }
   };
 
+  const handleLoginSuccess = (user: AppUser, selectedTenant: TenantSettings) => {
+    setCurrentUser(user);
+    saveCurrentUser(user);
+    if (selectedTenant) {
+      setTenant(selectedTenant);
+      saveStoredTenant(selectedTenant);
+    }
+    if (user.role === "superadmin") {
+      setActiveView("terminal");
+    } else if (user.role === "cashier") {
+      setActiveView("pos");
+    } else if (user.role === "inventory_clerk") {
+      setActiveView("inventory");
+    } else {
+      setActiveView("spatial");
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    saveCurrentUser(null);
+  };
+
+  // Si no hay usuario autenticado, mostrar Landing Page ultra moderna con Login integrado
+  if (!currentUser || !tenant) {
+    return (
+      <LandingAndLogin
+        tenants={tenants}
+        users={users}
+        onLoginSuccess={handleLoginSuccess}
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f5f5f7] dark:bg-[#0d0e11] text-neutral-900 dark:text-neutral-100 flex flex-col font-sans transition-colors duration-200">
       
@@ -216,123 +259,144 @@ export default function Home() {
       )}
 
       {/* Main App Layout */}
-      {tenant && currentUser && (
-        <>
-          {/* Top Bar */}
-          <Header
-            tenant={tenant}
-            activeView={activeView}
-            setActiveView={setActiveView}
-            darkMode={darkMode}
-            setDarkMode={setDarkMode}
-            isOnline={isOnline}
-            currentUser={currentUser}
-            users={users}
-            onSwitchUser={handleSwitchUser}
-            onOpenCommandPalette={() => setShowCommandPalette(true)}
-            onOpenSettingsWizard={() => setShowWizard(true)}
-          />
+      <>
+        {/* Top Bar */}
+        <Header
+          tenant={tenant}
+          activeView={activeView}
+          setActiveView={setActiveView}
+          darkMode={darkMode}
+          setDarkMode={setDarkMode}
+          isOnline={isOnline}
+          currentUser={currentUser}
+          users={users}
+          onSwitchUser={handleSwitchUser}
+          onOpenCommandPalette={() => setShowCommandPalette(true)}
+          onOpenSettingsWizard={() => setShowWizard(true)}
+          onLogout={handleLogout}
+        />
 
-          {/* Banner de Modo Empleado restringido si no es dueño */}
-          {currentUser.role !== "owner" && (
-            <div className="fixed top-14 inset-x-0 z-30 bg-apple-blue text-white px-4 py-1.5 text-xs text-center font-medium shadow-sm flex items-center justify-center gap-3">
-              <span>
-                Sesión de <strong>{currentUser.roleLabel}</strong>: Acceso restringido a <strong>{currentUser.role === "cashier" ? "Caja & Ventas POS" : "Inventario"}</strong>
-              </span>
-              <button
-                type="button"
-                onClick={handleReturnToOwner}
-                className="px-2.5 py-0.5 rounded-full bg-white text-apple-blue font-bold text-[11px] hover:bg-neutral-100 transition-colors shadow-2xs"
-              >
-                Volver a Cuenta de Dueño
-              </button>
-            </div>
+        {/* Banner de Modo Empleado restringido si no es dueño ni superadmin */}
+        {currentUser.role !== "owner" && currentUser.role !== "superadmin" && (
+          <div className="fixed top-14 inset-x-0 z-30 bg-apple-blue text-white px-4 py-1.5 text-xs text-center font-medium shadow-sm flex items-center justify-center gap-3">
+            <span>
+              Sesión de <strong>{currentUser.roleLabel}</strong>: Acceso restringido a <strong>{currentUser.role === "cashier" ? "Caja & Ventas POS" : "Inventario"}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={handleReturnToOwner}
+              className="px-2.5 py-0.5 rounded-full bg-white text-apple-blue font-bold text-[11px] hover:bg-neutral-100 transition-colors shadow-2xs"
+            >
+              Volver a Cuenta de Dueño
+            </button>
+          </div>
+        )}
+
+        {/* Main Content Area */}
+        <main className={`flex-1 max-w-7xl mx-auto w-full px-4 md:px-8 pb-28 ${currentUser.role !== "owner" && currentUser.role !== "superadmin" ? "pt-24" : "pt-20"}`}>
+          
+          {/* 1. Red Espacial (Cada cuadro muestra dinámicamente un módulo activo del rubro) */}
+          {activeView === "spatial" && (currentUser.role === "owner" || currentUser.role === "superadmin") && (
+            <SpatialCanvas
+              tenant={tenant}
+              products={products}
+              customers={customers}
+              sales={sales}
+              darkMode={darkMode}
+              onNavigate={(v) => setActiveView(v)}
+              onOpenSettingsWizard={() => setActiveView("settings")}
+            />
           )}
 
-          {/* Main Content Area */}
-          <main className={`flex-1 max-w-7xl mx-auto w-full px-4 md:px-8 pb-28 ${currentUser.role !== "owner" ? "pt-24" : "pt-20"}`}>
-            
-            {/* 1. Red Espacial (Cada cuadro muestra dinámicamente un módulo activo del rubro) */}
-            {activeView === "spatial" && currentUser.role === "owner" && (
-              <SpatialCanvas
-                tenant={tenant}
-                products={products}
-                customers={customers}
-                sales={sales}
-                darkMode={darkMode}
-                onNavigate={(v) => setActiveView(v)}
-                onOpenSettingsWizard={() => setActiveView("settings")}
-              />
-            )}
+          {/* 2. Drag & Drop Dashboard */}
+          {activeView === "dashboard" && (
+            <DashboardBuilder
+              tenant={tenant}
+              products={products}
+              customers={customers}
+              sales={sales}
+              onNavigate={(v) => setActiveView(v)}
+            />
+          )}
 
-            {/* 2. Drag & Drop Dashboard */}
-            {activeView === "dashboard" && (
-              <DashboardBuilder
-                tenant={tenant}
-                products={products}
-                customers={customers}
-                sales={sales}
-                onNavigate={(v) => setActiveView(v)}
-              />
-            )}
+          {/* 3. POS Terminal (Accesible para Dueño, SuperAdmin y Cajero) */}
+          {activeView === "pos" && (
+            <POSTerminal
+              tenant={tenant}
+              products={products}
+              customers={customers}
+              onSaleComplete={handleSaleComplete}
+              pendingBill={pendingBill}
+              onClearPendingBill={() => setPendingBill(null)}
+            />
+          )}
 
-            {/* 3. POS Terminal (Accesible para Dueño y Cajero) */}
-            {activeView === "pos" && (
-              <POSTerminal
-                tenant={tenant}
-                products={products}
-                customers={customers}
-                onSaleComplete={handleSaleComplete}
-                pendingBill={pendingBill}
-                onClearPendingBill={() => setPendingBill(null)}
-              />
-            )}
+          {/* 4. Inventario & Kardex (Accesible para Dueño, SuperAdmin y Bodeguero) */}
+          {activeView === "inventory" && (
+            <InventoryManager
+              tenant={tenant}
+              products={products}
+              setProducts={setProducts}
+            />
+          )}
 
-            {/* 4. Inventario & Kardex (Accesible para Dueño y Bodeguero) */}
-            {activeView === "inventory" && (
-              <InventoryManager
-                tenant={tenant}
-                products={products}
-                setProducts={setProducts}
-              />
-            )}
+          {/* 5. Directorio de Clientes */}
+          {activeView === "customers" && (
+            <CustomersManager
+              tenant={tenant}
+              customers={customers}
+              setCustomers={setCustomers}
+            />
+          )}
 
-            {/* 5. Directorio de Clientes */}
-            {activeView === "customers" && (
-              <CustomersManager
-                tenant={tenant}
-                customers={customers}
-                setCustomers={setCustomers}
-              />
-            )}
+          {/* 6. Apartado del Dueño: Usuarios & Roles (Caja e Inventario) */}
+          {activeView === "users" && (currentUser.role === "owner" || currentUser.role === "superadmin") && (
+            <UsersManager
+              tenant={tenant}
+              users={users}
+              setUsers={setUsers}
+              currentUser={currentUser}
+              onSwitchUser={handleSwitchUser}
+            />
+          )}
 
-            {/* 6. Apartado del Dueño: Usuarios & Roles (Caja e Inventario) */}
-            {activeView === "users" && currentUser.role === "owner" && (
-              <UsersManager
-                tenant={tenant}
-                users={users}
-                setUsers={setUsers}
-                currentUser={currentUser}
-                onSwitchUser={handleSwitchUser}
-              />
-            )}
+          {/* 7. SuperAdmin Terminal (God Mode) */}
+          {activeView === "terminal" && (currentUser.role === "owner" || currentUser.role === "superadmin") && (
+            <SuperAdminTerminal
+              currentTenant={tenant}
+              allTenants={tenants}
+              onUpdateTenantSettings={handleUpdateTenantSettings}
+              onSaveAllTenants={(updatedList) => {
+                setTenants(updatedList);
+                saveStoredTenantsList(updatedList);
+                const match = updatedList.find((t) => t.id === tenant.id);
+                if (match) {
+                  setTenant(match);
+                  saveStoredTenant(match);
+                }
+              }}
+              onSwitchTenant={(selectedTenant) => {
+                setTenant(selectedTenant);
+                saveStoredTenant(selectedTenant);
+                const updatedUsers = getStoredUsers(selectedTenant);
+                setUsers(updatedUsers);
+              }}
+              allUsers={users}
+              onSaveAllUsers={(updatedUsers) => {
+                setUsers(updatedUsers);
+                saveStoredUsers(updatedUsers);
+              }}
+            />
+          )}
 
-            {/* 7. SuperAdmin Terminal (God Mode) */}
-            {activeView === "terminal" && currentUser.role === "owner" && (
-              <SuperAdminTerminal
-                currentTenant={tenant}
-                onUpdateTenantSettings={handleUpdateTenantSettings}
-              />
-            )}
-
-            {/* 8. Ajustes & Configuración del Sistema (Facturas, Plan y Paneles) */}
-            {activeView === "settings" && currentUser.role === "owner" && (
-              <SettingsManager
-                tenant={tenant}
-                onUpdateTenant={handleUpdateTenantSettings}
-                onNavigate={(v) => setActiveView(v)}
-              />
-            )}
+          {/* 8. Ajustes & Configuración del Sistema (Facturas, Plan y Paneles) */}
+          {activeView === "settings" && (currentUser.role === "owner" || currentUser.role === "superadmin") && (
+            <SettingsManager
+              tenant={tenant}
+              onUpdateTenant={handleUpdateTenantSettings}
+              onNavigate={(v) => setActiveView(v)}
+            />
+          )}
 
             {/* 9. Módulo Veterinario (Expedientes de Mascotas y Vacunas) */}
             {activeView === "veterinary" && (
@@ -395,8 +459,6 @@ export default function Home() {
             <span>{isOnline ? "Modo Local Listo (Supabase opcional)" : "Modo Offline Activo"}</span>
           </footer>
         </>
-      )}
-
-    </div>
-  );
-}
+      </div>
+    );
+  }

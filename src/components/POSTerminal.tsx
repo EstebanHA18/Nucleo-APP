@@ -429,7 +429,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
   const handleConfirmOpenCash = (e: React.FormEvent) => {
     e.preventDefault();
     const fund = parseFloat(openingFundInput) || 0;
-    const newSession = openCashSession(fund, currentUser.fullName);
+    const newSession = openCashSession(fund, currentUser?.fullName || "Cajero Mostrador");
     setCashSession(newSession);
     setShowOpenCashModal(false);
     playBeep(1100, 0.15);
@@ -439,7 +439,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
   const handleConfirmCloseCash = (e: React.FormEvent) => {
     e.preventDefault();
     const counted = parseFloat(countedCashInput) || 0;
-    const closed = closeCashSession(counted, currentUser.fullName, closeNotesInput);
+    const closed = closeCashSession(counted, currentUser?.fullName || "Cajero Mostrador", closeNotesInput);
     setCashSession(closed);
     setShowCloseCashModal(false);
     setLastClosedSessionReceipt(closed);
@@ -487,7 +487,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
       currency: tenant.currency,
       exchangeRate: tenant.exchangeRate,
       createdAt: new Date().toISOString(),
-      cashierName: currentUser.fullName,
+      cashierName: currentUser?.fullName || "Cajero Mostrador",
     };
 
     // 1. Descontar inventario automáticamente y registrar la venta
@@ -542,7 +542,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
                 {cashSession.status === "open" ? "Caja Abierta" : "Caja Cerrada"}
               </span>
               <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
-                Atendido por: {cashSession.openedBy || currentUser.fullName}
+                Atendido por: {cashSession.openedBy || currentUser?.fullName || "Cajero Mostrador"}
               </span>
             </div>
             <div className="flex items-center gap-3 text-[11px] font-mono text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -1215,7 +1215,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
                 </label>
                 <div className="p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 font-semibold text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
                   <UserCheck className="w-4 h-4 text-apple-blue" />
-                  <span>{currentUser.fullName} ({currentUser.roleLabel})</span>
+                  <span>{currentUser?.fullName || "Cajero Mostrador"} ({currentUser?.roleLabel || "Cajero"})</span>
                 </div>
               </div>
 
@@ -1463,7 +1463,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
                   </p>
                 )}
                 <p className="text-[10px] text-neutral-500">
-                  CAJERO: {lastSale.cashierName || currentUser.fullName}
+                  CAJERO: {lastSale.cashierName || currentUser?.fullName || "Cajero Mostrador"}
                 </p>
               </div>
 

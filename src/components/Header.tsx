@@ -14,7 +14,8 @@ import {
   Shield,
   KeyRound,
   LogIn,
-  Users
+  Users,
+  LogOut
 } from "lucide-react";
 import { TenantSettings, AppUser } from "@/types";
 
@@ -30,6 +31,7 @@ interface HeaderProps {
   onSwitchUser: (user: AppUser) => void;
   onOpenCommandPalette: () => void;
   onOpenSettingsWizard: () => void;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -44,11 +46,12 @@ export const Header: React.FC<HeaderProps> = ({
   onSwitchUser,
   onOpenCommandPalette,
   onOpenSettingsWizard,
+  onLogout,
 }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const isOwner = currentUser.role === "owner";
+  const isOwner = currentUser.role === "owner" || currentUser.role === "superadmin";
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -144,19 +147,20 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* SuperAdmin Terminal (Solo para dueño) */}
-          {isOwner && (
+          {/* SuperAdmin Terminal (Solo para dueño o superadmin) */}
+          {(isOwner || currentUser.role === "superadmin") && (
             <button
               type="button"
               onClick={() => setActiveView("terminal")}
-              className={`px-2 py-1 rounded-full text-xs font-mono font-medium flex items-center gap-1.5 transition-all ${
+              className={`px-2.5 py-1 rounded-full text-xs font-mono font-medium flex items-center gap-1.5 transition-all ${
                 activeView === "terminal"
                   ? "bg-neutral-900 text-apple-green dark:bg-black dark:text-apple-green ring-1 ring-apple-green/50"
                   : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
               }`}
-              title="Terminal Master (God Mode)"
+              title="SuperAdmin Terminal (God Mode)"
             >
-              <Terminal className="w-3.5 h-3.5" />
+              <Terminal className="w-3.5 h-3.5 text-apple-green" />
+              <span className="hidden sm:inline font-bold">God Mode</span>
             </button>
           )}
 
@@ -175,7 +179,9 @@ export const Header: React.FC<HeaderProps> = ({
               type="button"
               onClick={() => setShowUserMenu(!showUserMenu)}
               className={`flex items-center gap-2 pl-2 pr-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
-                currentUser.role === "owner"
+                currentUser.role === "superadmin"
+                  ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30"
+                  : currentUser.role === "owner"
                   ? "bg-apple-green/10 text-apple-green border-apple-green/30"
                   : currentUser.role === "cashier"
                   ? "bg-apple-blue/10 text-apple-blue border-apple-blue/30"
@@ -224,7 +230,7 @@ export const Header: React.FC<HeaderProps> = ({
                     >
                       <div className="flex items-center gap-2">
                         <span className={`w-2 h-2 rounded-full ${
-                          u.role === "owner" ? "bg-apple-green" : u.role === "cashier" ? "bg-apple-blue" : "bg-apple-purple"
+                          u.role === "superadmin" ? "bg-purple-500" : u.role === "owner" ? "bg-apple-green" : u.role === "cashier" ? "bg-apple-blue" : "bg-apple-purple"
                         }`} />
                         <div>
                           <span className="block truncate max-w-[140px] leading-tight">{u.fullName}</span>
@@ -232,14 +238,14 @@ export const Header: React.FC<HeaderProps> = ({
                         </div>
                       </div>
                       <span className="text-[10px] font-mono text-neutral-400">
-                        PIN: {u.pinCode}
+                        {u.password || u.pinCode}
                       </span>
                     </button>
                   );
                 })}
 
-                {isOwner && (
-                  <div className="pt-1 border-t border-neutral-100 dark:border-neutral-800">
+                <div className="pt-1 border-t border-neutral-100 dark:border-neutral-800 space-y-0.5">
+                  {isOwner && (
                     <button
                       type="button"
                       onClick={() => {
@@ -251,11 +257,37 @@ export const Header: React.FC<HeaderProps> = ({
                       <Users className="w-3.5 h-3.5" />
                       <span>Crear nuevo usuario...</span>
                     </button>
-                  </div>
-                )}
+                  )}
+
+                  {onLogout && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        onLogout();
+                      }}
+                      className="w-full py-1.5 px-2 rounded-xl hover:bg-red-500/10 text-left text-xs font-semibold text-red-600 dark:text-red-400 flex items-center gap-1.5 transition-colors"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Cerrar Sesión / Salir</span>
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
+
+          {/* Botón directo de Logout rápido */}
+          {onLogout && (
+            <button
+              type="button"
+              onClick={onLogout}
+              className="w-8 h-8 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 flex items-center justify-center text-neutral-500 dark:text-neutral-400 transition-colors"
+              title="Cerrar Sesión y volver al portal de inicio"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
 
         </div>
 

@@ -42,6 +42,7 @@ import {
   printTestReceiptViaBluetooth, 
   BluetoothPrinterState 
 } from "@/lib/bluetoothPrinter";
+import { calculateTenantBilling } from "@/lib/centralAmericaBilling";
 
 interface SettingsManagerProps {
   tenant: TenantSettings;
@@ -859,156 +860,181 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
       {/* ======================================================== */}
       {/* PESTAÑA 2: MI CUENTA, PLAN CONTRATADO Y COBRO MENSUAL   */}
       {/* ======================================================== */}
-      {activeTab === "subscription" && (
-        <div className="space-y-6 animate-fadeIn">
-          
-          {/* Tarjeta Destacada del Plan Contratado */}
-          <div className="p-6 rounded-3xl bg-linear-to-br from-white to-neutral-50 dark:from-[#1c1c1e] dark:to-[#161618] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-5">
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-neutral-200/80 dark:border-neutral-800">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-apple-blue text-white flex items-center justify-center shadow-md shadow-apple-blue/30 font-bold text-lg">
-                  N
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white tracking-tight">
-                      Plan Núcleo {tenant.planName || "Pro"}
-                    </h2>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                      🟢 ACTIVO / AL DÍA
-                    </span>
+      {activeTab === "subscription" && (() => {
+        const billing = calculateTenantBilling(tenant);
+        return (
+          <div className="space-y-6 animate-fadeIn">
+            
+            {/* Tarjeta Destacada del Plan Contratado */}
+            <div className="p-6 rounded-3xl bg-linear-to-br from-white to-neutral-50 dark:from-[#1c1c1e] dark:to-[#161618] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-neutral-200/80 dark:border-neutral-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-apple-blue text-white flex items-center justify-center shadow-md shadow-apple-blue/30 font-bold text-lg">
+                    N
                   </div>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                    Suscripción SaaS para {tenant.name} • Asignada por la Administración Central
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white tracking-tight">
+                        Plan Núcleo {tenant.planName || "Pro"}
+                      </h2>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${billing.statusBadge.colorClass}`}>
+                        {billing.statusBadge.label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                      Suscripción SaaS para {tenant.name} • Facturación Centroamérica (UTC-6)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Cobro Mensual Definido por el Admin */}
+                <div className="text-right">
+                  <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest block font-semibold">
+                    Tarifa Mensual Contratada
+                  </span>
+                  <div className="text-3xl font-black text-apple-blue font-mono tracking-tight">
+                    ${tenant.monthlyPlanPrice || 35.0}.00 <span className="text-xs font-normal text-neutral-400">USD/mes</span>
+                  </div>
+                  <span className="text-xs font-mono text-neutral-500">
+                    ≈ C$ {((tenant.monthlyPlanPrice || 35.0) * tenant.exchangeRate).toLocaleString("es-NI", { minimumFractionDigits: 2 })} NIO
+                  </span>
+                </div>
+              </div>
+
+              {/* Cuadrícula de Métricas de Facturación del Servicio */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-medium">
+                <div className="p-4 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/60 space-y-1">
+                  <span className="text-[10px] font-mono text-neutral-400 uppercase flex items-center gap-1 font-bold">
+                    <Calendar className="w-3.5 h-3.5 text-apple-blue" />
+                    Próximo Corte (Día 10)
+                  </span>
+                  <div className="text-sm font-bold text-neutral-900 dark:text-white font-mono">
+                    {billing.nextCutDate}
+                  </div>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                    Corte automático mensual
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/60 space-y-1">
+                  <span className="text-[10px] font-mono text-neutral-400 uppercase flex items-center gap-1 font-bold">
+                    <Clock className="w-3.5 h-3.5 text-apple-blue" />
+                    Último Día de Pago (Día 05)
+                  </span>
+                  <div className="text-sm font-bold text-neutral-900 dark:text-white font-mono">
+                    {billing.nextDueDate}
+                  </div>
+                  <span className="text-[10px] text-neutral-500">
+                    Vencimiento del período
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/60 space-y-1">
+                  <span className="text-[10px] font-mono text-neutral-400 uppercase flex items-center gap-1 font-bold">
+                    <ShieldCheck className="w-3.5 h-3.5 text-apple-blue" />
+                    Alta de Perfil
+                  </span>
+                  <div className="text-sm font-bold text-neutral-900 dark:text-white truncate font-mono">
+                    {billing.startDate}
+                  </div>
+                  <span className="text-[10px] text-neutral-500">
+                    Inicio de cómputo de servicio
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/60 space-y-1">
+                  <span className="text-[10px] font-mono text-neutral-400 uppercase flex items-center gap-1 font-bold">
+                    <DollarSign className="w-3.5 h-3.5 text-apple-blue" />
+                    Monto Próximo Corte
+                  </span>
+                  <div className="text-sm font-bold text-apple-blue font-mono">
+                    ${billing.amountDueUsd.toFixed(2)} USD
+                  </div>
+                  <span className="text-[10px] text-neutral-500">
+                    {billing.isFirstProRatedCycle ? `Prorrateo de ${billing.daysConsumed} días` : "Tarifa mensual regular"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Alerta de Prorrateo si contrató a mitad de mes */}
+              {billing.isFirstProRatedCycle && (
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 space-y-1 animate-fadeIn">
+                  <div className="flex items-center gap-2 font-bold">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <span>Factura Proporcional Aplicada (Prorrateo Activo)</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed">
+                    Tu perfil se activó el <strong>{billing.startDate}</strong>. Conforme a las políticas de Núcleo ERP, tu primera factura no cobra el mes completo, sino únicamente los <strong>{billing.daysConsumed} días consumidos</strong> hasta el corte del día 10 (${billing.amountDueUsd.toFixed(2)} USD). A partir del siguiente ciclo, tu mensualidad será la pactada (${tenant.monthlyPlanPrice || 35.0}.00 USD/mes).
                   </p>
                 </div>
-              </div>
+              )}
 
-              {/* Cobro Mensual Definido por el Admin */}
-              <div className="text-right">
-                <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest block font-semibold">
-                  Tarifa Mensual Contratada
-                </span>
-                <div className="text-3xl font-black text-apple-blue font-mono tracking-tight">
-                  ${tenant.monthlyPlanPrice || 35.0}.00 <span className="text-xs font-normal text-neutral-400">USD/mes</span>
+              {/* Aviso de Política de Administrador */}
+              <div className="p-3.5 rounded-2xl bg-apple-blue/5 dark:bg-apple-blue/10 border border-apple-blue/20 text-xs text-neutral-700 dark:text-neutral-300 flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-apple-blue shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <strong>Zona Horaria Oficial:</strong> {billing.timeZoneLabel}. Todos los cortes contables ocurren a las 23:59:59 del día 10 de cada mes y el plazo para registrar comprobante vence a las 23:59:59 del día 05.
                 </div>
-                <span className="text-xs font-mono text-neutral-500">
-                  ≈ C$ {((tenant.monthlyPlanPrice || 35.0) * tenant.exchangeRate).toLocaleString("es-NI", { minimumFractionDigits: 2 })} NIO
-                </span>
               </div>
             </div>
 
-            {/* Cuadrícula de Métricas de Facturación del Servicio */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-medium">
-              <div className="p-4 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/60 space-y-1">
-                <span className="text-[10px] font-mono text-neutral-400 uppercase flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-apple-blue" />
-                  Próxima Fecha de Corte
-                </span>
-                <div className="text-sm font-bold text-neutral-900 dark:text-white">
-                  {tenant.nextPaymentDate || "15 de Diciembre, 2026"}
-                </div>
-                <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
-                  Período corriente sin retrasos
+            {/* Historial de Comprobantes de Pago del Servicio */}
+            <div className="p-5 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
+                  Historial de Recibos de Membresía del SaaS
+                </h3>
+                <span className="text-[10px] font-mono text-neutral-400">
+                  Corte: Cada día 10 • Pago: Cada día 05
                 </span>
               </div>
 
-              <div className="p-4 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/60 space-y-1">
-                <span className="text-[10px] font-mono text-neutral-400 uppercase flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-apple-blue" />
-                  Ciclo de Facturación
-                </span>
-                <div className="text-sm font-bold text-neutral-900 dark:text-white">
-                  Mensual Recurrente
-                </div>
-                <span className="text-[10px] text-neutral-500">
-                  Facturación cada 30 días
-                </span>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/60 space-y-1">
-                <span className="text-[10px] font-mono text-neutral-400 uppercase flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-apple-blue" />
-                  Asignado por Administrador
-                </span>
-                <div className="text-sm font-bold text-neutral-900 dark:text-white truncate">
-                  {tenant.adminAssignedBy || "SuperAdmin Central"}
-                </div>
-                <span className="text-[10px] text-neutral-500">
-                  Soporte técnico preferencial
-                </span>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-neutral-100/70 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/60 space-y-1">
-                <span className="text-[10px] font-mono text-neutral-400 uppercase flex items-center gap-1">
-                  <CreditCard className="w-3.5 h-3.5 text-apple-blue" />
-                  Método Registrado
-                </span>
-                <div className="text-sm font-bold text-neutral-900 dark:text-white">
-                  Transferencia BAC / Banpro
-                </div>
-                <span className="text-[10px] text-neutral-500">
-                  Comprobante verificado
-                </span>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead>
+                    <tr className="border-b border-neutral-200 dark:border-neutral-800 text-neutral-400 font-semibold">
+                      <th className="py-2.5 px-3">Comprobante</th>
+                      <th className="py-2.5 px-3">Período de Servicio</th>
+                      <th className="py-2.5 px-3">Fecha Corte</th>
+                      <th className="py-2.5 px-3">Vence</th>
+                      <th className="py-2.5 px-3">Monto Cobrado</th>
+                      <th className="py-2.5 px-3">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/60">
+                    {billing.invoicesHistory.map((inv) => (
+                      <tr key={inv.id}>
+                        <td className="py-2.5 px-3 font-bold text-neutral-900 dark:text-white">{inv.id}</td>
+                        <td className="py-2.5 px-3">
+                          <span>{inv.period}</span>
+                          {inv.isProRated && (
+                            <span className="ml-1 text-[9px] text-amber-500 font-sans block">
+                              ★ Prorrateado
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-neutral-500">{inv.cutDate}</td>
+                        <td className="py-2.5 px-3 text-neutral-500">{inv.dueDate}</td>
+                        <td className="py-2.5 px-3 font-bold text-apple-blue">${inv.amountUsd.toFixed(2)} USD</td>
+                        <td className="py-2.5 px-3">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            inv.status === "PAGADO"
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                          }`}>
+                            {inv.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            {/* Aviso de Política de Administrador */}
-            <div className="p-3.5 rounded-2xl bg-apple-blue/5 dark:bg-apple-blue/10 border border-apple-blue/20 text-xs text-neutral-700 dark:text-neutral-300 flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-apple-blue shrink-0 mt-0.5" />
-              <div className="leading-relaxed">
-                <strong>Tarifa Fija Garantizada:</strong> El valor mensual de tu suscripción ($35.00 USD/mes) ha sido acordado y fijado directamente por el Administrador de Núcleo ERP para tu negocio ({tenant.businessVertical}). No se aplican cargos automáticos imprevistos ni comisiones ocultas por venta.
-              </div>
-            </div>
           </div>
-
-          {/* Historial de Comprobantes de Pago del Servicio */}
-          <div className="p-5 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-3">
-            <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
-              Historial de Recibos de Membresía del SaaS
-            </h3>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs font-mono">
-                <thead>
-                  <tr className="border-b border-neutral-200 dark:border-neutral-800 text-neutral-400 font-semibold">
-                    <th className="py-2.5 px-3">Comprobante</th>
-                    <th className="py-2.5 px-3">Período de Servicio</th>
-                    <th className="py-2.5 px-3">Monto Cobrado</th>
-                    <th className="py-2.5 px-3">Método de Pago</th>
-                    <th className="py-2.5 px-3">Estado</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/60">
-                  <tr>
-                    <td className="py-2.5 px-3 font-bold text-neutral-900 dark:text-white">NUC-INV-2026-11</td>
-                    <td className="py-2.5 px-3">01 Nov 2026 - 30 Nov 2026</td>
-                    <td className="py-2.5 px-3 font-bold text-apple-blue">$35.00 USD</td>
-                    <td className="py-2.5 px-3 text-neutral-500">Transf. BAC Credomatic #98214</td>
-                    <td className="py-2.5 px-3">
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
-                        PAGADO
-                      </span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-2.5 px-3 font-bold text-neutral-900 dark:text-white">NUC-INV-2026-10</td>
-                    <td className="py-2.5 px-3">01 Oct 2026 - 31 Oct 2026</td>
-                    <td className="py-2.5 px-3 font-bold text-apple-blue">$35.00 USD</td>
-                    <td className="py-2.5 px-3 text-neutral-500">Transf. Banpro #77120</td>
-                    <td className="py-2.5 px-3">
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
-                        PAGADO
-                      </span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-        </div>
-      )}
+        );
+      })()}
 
       {/* ======================================================== */}
       {/* PESTAÑA 3: PANELES Y MÓDULOS ASIGNADOS POR EL ADMIN       */}

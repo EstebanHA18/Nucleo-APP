@@ -32,7 +32,7 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
   onOpenSettingsWizard,
   onReturnToOwner,
 }) => {
-  const isOwner = currentUser.role === "owner";
+  const isOwner = currentUser.role === "owner" || currentUser.role === "superadmin";
 
   // Verificar si el usuario actual tiene permiso para ver un módulo específico
   const canAccess = (moduleKey: string) => {
@@ -184,6 +184,23 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           >
             <LogIn className="w-3.5 h-3.5" />
             <span>Volver a Dueño</span>
+          </button>
+        )}
+
+        {/* SuperAdmin God Mode Terminal */}
+        {currentUser.role === "superadmin" && (
+          <button
+            type="button"
+            onClick={() => setActiveView("terminal")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-semibold transition-all ${
+              activeView === "terminal"
+                ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
+                : "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+            }`}
+            title="SuperAdmin Terminal // God Mode"
+          >
+            <span>&gt;_</span>
+            <span className="hidden sm:inline">God Mode</span>
           </button>
         )}
 

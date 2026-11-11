@@ -61,8 +61,147 @@ export function getBatchExpirationStatus(dateStr?: string): {
   }
 }
 
+export const INITIAL_TENANTS: TenantSettings[] = [
+  {
+    id: "tenant-ferreteria-1",
+    name: "Ferretería El Tornillo Dorado",
+    legalName: "Distribuidora Ferretera del Occidente S.A.",
+    taxId: "J031000049102",
+    phone: "+505 2341-2090",
+    email: "ventas@tornillodorado.com",
+    address: "Costado Norte del Parque Central, 1c al Este",
+    city: "Chinandega",
+    owner: {
+      fullName: "Don Carlos Mendoza",
+      email: "carlos@tornillodorado.com",
+      phone: "+505 8892-1049",
+      role: "owner",
+      pinCode: "1234",
+    },
+    businessVertical: "ferreteria",
+    currency: "NIO",
+    secondaryCurrency: "USD",
+    exchangeRate: 36.62,
+    taxPercentage: 15.0,
+    activeModules: ["pos", "inventory", "billing", "customers", "expenses", "veterinary", "clinical"],
+    ticketFormat: "80mm",
+    ticketHeader: "Ferretería El Tornillo Dorado",
+    ticketFooter: "¡Gracias por su compra! Revise su mercadería al salir.",
+    invoiceSlogan: "Calidad, Servicio y Garantía para tu Negocio",
+    showTaxBreakdown: true,
+    showUsdEquivalence: true,
+    showBarcodeOnTicket: true,
+    showLogoOnTicket: true,
+    logoSize: "md",
+    autoPrintBluetooth: false,
+    isSetupCompleted: true,
+    monthlyPlanPrice: 29.0,
+    planName: "Pro",
+    billingCycle: "monthly",
+    paymentStatus: "active",
+    adminAssignedBy: "SuperAdmin Central // God Mode",
+    createdAt: "2026-10-24T00:00:00.000Z",
+    planAssignedDate: "2026-10-24",
+    billingCutDay: 10,
+    billingDueDay: 5,
+    loginUsername: "propietario",
+    loginPassword: "1234",
+  },
+  {
+    id: "tenant-dental-2",
+    name: "Clínica Dental & Odontología Sonrisas",
+    legalName: "Clínica Dental Sonrisas & Especialidades S.A.",
+    taxId: "J031000099881",
+    phone: "+505 2270-1122",
+    email: "contacto@sonrisasdental.ni",
+    address: "Plaza España, Módulo 4-B",
+    city: "Managua",
+    owner: {
+      fullName: "Dra. Patricia Somarriba",
+      email: "patricia@sonrisasdental.ni",
+      phone: "+505 8433-2211",
+      role: "owner",
+      pinCode: "1234",
+    },
+    businessVertical: "dental",
+    currency: "NIO",
+    secondaryCurrency: "USD",
+    exchangeRate: 36.62,
+    taxPercentage: 15.0,
+    activeModules: ["clinical", "pos", "inventory", "billing", "customers"],
+    ticketFormat: "80mm",
+    ticketHeader: "Clínica Dental Sonrisas",
+    ticketFooter: "¡Cuidamos de tu sonrisa y salud bucal!",
+    invoiceSlogan: "Odontología Digital y Especializada",
+    showTaxBreakdown: true,
+    showUsdEquivalence: true,
+    showBarcodeOnTicket: true,
+    showLogoOnTicket: true,
+    logoSize: "md",
+    autoPrintBluetooth: false,
+    isSetupCompleted: true,
+    monthlyPlanPrice: 39.0,
+    planName: "Enterprise",
+    billingCycle: "monthly",
+    paymentStatus: "active",
+    adminAssignedBy: "SuperAdmin Central // God Mode",
+    createdAt: "2026-10-15T00:00:00.000Z",
+    planAssignedDate: "2026-10-15",
+    billingCutDay: 10,
+    billingDueDay: 5,
+    loginUsername: "clinica",
+    loginPassword: "1234",
+  },
+  {
+    id: "tenant-vet-3",
+    name: "Veterinaria & Pet Care San Francisco",
+    legalName: "Servicios Veterinarios San Francisco S.A.",
+    taxId: "J031000077665",
+    phone: "+505 2311-5500",
+    email: "citas@vetsanfrancisco.ni",
+    address: "De la Iglesia La Merced 1c al Sur",
+    city: "León",
+    owner: {
+      fullName: "Dra. Lucía Mendoza",
+      email: "lucia@vetsanfrancisco.ni",
+      phone: "+505 8455-6677",
+      role: "owner",
+      pinCode: "1234",
+    },
+    businessVertical: "veterinaria",
+    currency: "NIO",
+    secondaryCurrency: "USD",
+    exchangeRate: 36.62,
+    taxPercentage: 15.0,
+    activeModules: ["veterinary", "pos", "inventory", "billing", "customers"],
+    ticketFormat: "80mm",
+    ticketHeader: "Veterinaria San Francisco",
+    ticketFooter: "¡El mejor cuidado médico para tu mejor amigo!",
+    invoiceSlogan: "Medicina Veterinaria y Cirugía Especializada",
+    showTaxBreakdown: true,
+    showUsdEquivalence: true,
+    showBarcodeOnTicket: true,
+    showLogoOnTicket: true,
+    logoSize: "md",
+    autoPrintBluetooth: false,
+    isSetupCompleted: true,
+    monthlyPlanPrice: 35.0,
+    planName: "Pro",
+    billingCycle: "monthly",
+    paymentStatus: "active",
+    adminAssignedBy: "SuperAdmin Central // God Mode",
+    createdAt: "2026-11-01T00:00:00.000Z",
+    planAssignedDate: "2026-11-01",
+    billingCutDay: 10,
+    billingDueDay: 5,
+    loginUsername: "veterinaria",
+    loginPassword: "1234",
+  },
+];
+
 const STORAGE_KEYS = {
   TENANT: "nucleo_tenant_settings",
+  TENANTS_LIST: "nucleo_tenants_list",
   PRODUCTS: "nucleo_products",
   CUSTOMERS: "nucleo_customers",
   SALES: "nucleo_sales",
@@ -113,10 +252,38 @@ export const saveStoredClinicalPatients = (patients: ClinicalPatient[]) => {
   localStorage.setItem(STORAGE_KEYS.CLINICAL_PATIENTS, JSON.stringify(patients));
 };
 
+export const getStoredTenantsList = (): TenantSettings[] => {
+  if (typeof window === "undefined") return INITIAL_TENANTS;
+  const raw = localStorage.getItem(STORAGE_KEYS.TENANTS_LIST);
+  if (!raw) {
+    localStorage.setItem(STORAGE_KEYS.TENANTS_LIST, JSON.stringify(INITIAL_TENANTS));
+    return INITIAL_TENANTS;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed;
+    }
+    return INITIAL_TENANTS;
+  } catch {
+    return INITIAL_TENANTS;
+  }
+};
+
+export const saveStoredTenantsList = (tenants: TenantSettings[]) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEYS.TENANTS_LIST, JSON.stringify(tenants));
+};
+
 export const getStoredTenant = (): TenantSettings | null => {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined") return INITIAL_TENANTS[0];
   const raw = localStorage.getItem(STORAGE_KEYS.TENANT);
-  if (!raw) return null;
+  if (!raw) {
+    const list = getStoredTenantsList();
+    const defaultTenant = list[0] || INITIAL_TENANTS[0];
+    localStorage.setItem(STORAGE_KEYS.TENANT, JSON.stringify(defaultTenant));
+    return defaultTenant;
+  }
   try {
     const parsed = JSON.parse(raw);
     if (parsed && Array.isArray(parsed.activeModules)) {
@@ -135,13 +302,23 @@ export const getStoredTenant = (): TenantSettings | null => {
     }
     return parsed;
   } catch {
-    return null;
+    return INITIAL_TENANTS[0];
   }
 };
 
 export const saveStoredTenant = (tenant: TenantSettings) => {
   if (typeof window === "undefined") return;
   localStorage.setItem(STORAGE_KEYS.TENANT, JSON.stringify(tenant));
+
+  // Actualizar también en la lista de tenants
+  const list = getStoredTenantsList();
+  const index = list.findIndex((t) => t.id === tenant.id);
+  if (index >= 0) {
+    list[index] = tenant;
+  } else {
+    list.push(tenant);
+  }
+  saveStoredTenantsList(list);
 };
 
 export const getStoredProducts = (): Product[] => {
@@ -241,33 +418,69 @@ export const getStoredSales = (): Sale[] => {
 export const getStoredUsers = (tenant?: TenantSettings | null): AppUser[] => {
   if (typeof window === "undefined") return [];
   const raw = localStorage.getItem(STORAGE_KEYS.USERS);
+  let userList: AppUser[] = [];
   if (raw) {
     try {
-      return JSON.parse(raw);
+      userList = JSON.parse(raw);
     } catch {
-      // fallback
+      userList = [];
     }
   }
 
-  // Generar usuarios iniciales
-  const ownerName = tenant?.owner?.fullName || "Dueño General";
-  const initialUsers: AppUser[] = [
-    {
+  // Garantizar siempre la existencia del SuperAdmin con usuario 'admin' y contraseña 'admin123'
+  let superadmin = userList.find((u) => u.username === "admin" && u.role === "superadmin");
+  if (!superadmin) {
+    // Si existía un 'admin' con rol owner, renombrar su username a 'propietario'
+    const existingAdminOwner = userList.find((u) => u.username === "admin" && u.role === "owner");
+    if (existingAdminOwner) {
+      existingAdminOwner.username = "propietario";
+      existingAdminOwner.password = existingAdminOwner.pinCode || "1234";
+    }
+
+    superadmin = {
+      id: "usr-superadmin",
+      fullName: "SuperAdministrador Núcleo",
+      username: "admin",
+      password: "admin123",
+      pinCode: "admin123",
+      email: "admin@nucleo.ni",
+      role: "superadmin",
+      roleLabel: "SuperAdmin // God Mode",
+      allowedModules: ["pos", "inventory", "billing", "customers", "expenses", "veterinary", "clinical"],
+      active: true,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    };
+    userList.unshift(superadmin);
+  }
+
+  // Garantizar usuario dueño/propietario del negocio
+  let owner = userList.find((u) => u.role === "owner");
+  if (!owner) {
+    const ownerName = tenant?.owner?.fullName || "Don Carlos Mendoza";
+    owner = {
       id: "usr-owner",
       fullName: ownerName,
-      username: "admin",
-      email: tenant?.owner?.email || "admin@nucleo.ni",
-      pinCode: tenant?.owner?.pinCode || "1234",
+      username: tenant?.loginUsername || "propietario",
+      password: tenant?.loginPassword || "1234",
+      pinCode: tenant?.loginPassword || "1234",
+      email: tenant?.owner?.email || "propietario@tornillodorado.com",
       role: "owner",
       roleLabel: "Propietario / Dueño",
-      allowedModules: tenant?.activeModules || ["pos", "inventory", "billing", "customers", "expenses"],
+      allowedModules: tenant?.activeModules || ["pos", "inventory", "billing", "customers", "expenses", "veterinary", "clinical"],
       active: true,
       createdAt: new Date().toISOString(),
-    },
-    {
+      tenantId: tenant?.id,
+    };
+    userList.push(owner);
+  }
+
+  // Garantizar cajero y bodeguero
+  if (!userList.some((u) => u.username === "caja1")) {
+    userList.push({
       id: "usr-cashier",
       fullName: "Juan Carlos Cajero",
       username: "caja1",
+      password: "0000",
       phone: "+505 8812-4401",
       pinCode: "0000",
       role: "cashier",
@@ -275,11 +488,16 @@ export const getStoredUsers = (tenant?: TenantSettings | null): AppUser[] => {
       allowedModules: ["pos"],
       active: true,
       createdAt: new Date().toISOString(),
-    },
-    {
+      tenantId: tenant?.id,
+    });
+  }
+
+  if (!userList.some((u) => u.username === "bodega1")) {
+    userList.push({
       id: "usr-inventory",
       fullName: "Pedro Morales Bodega",
       username: "bodega1",
+      password: "1111",
       phone: "+505 8731-9922",
       pinCode: "1111",
       role: "inventory_clerk",
@@ -287,11 +505,12 @@ export const getStoredUsers = (tenant?: TenantSettings | null): AppUser[] => {
       allowedModules: ["inventory"],
       active: true,
       createdAt: new Date().toISOString(),
-    },
-  ];
+      tenantId: tenant?.id,
+    });
+  }
 
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(initialUsers));
-  return initialUsers;
+  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(userList));
+  return userList;
 };
 
 export const saveStoredUsers = (users: AppUser[]) => {
@@ -299,20 +518,8 @@ export const saveStoredUsers = (users: AppUser[]) => {
   localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
 };
 
-export const getCurrentUser = (users?: AppUser[]): AppUser => {
-  if (typeof window === "undefined") {
-    return {
-      id: "usr-owner",
-      fullName: "Propietario",
-      username: "admin",
-      pinCode: "1234",
-      role: "owner",
-      roleLabel: "Dueño",
-      allowedModules: ["pos", "inventory", "billing", "customers"],
-      active: true,
-      createdAt: new Date().toISOString(),
-    };
-  }
+export const getCurrentUser = (users?: AppUser[]): AppUser | null => {
+  if (typeof window === "undefined") return null;
 
   const raw = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
   if (raw) {
@@ -323,29 +530,16 @@ export const getCurrentUser = (users?: AppUser[]): AppUser => {
     }
   }
 
-  const allUsers = users || getStoredUsers();
-  const owner = allUsers.find((u) => u.role === "owner") || allUsers[0];
-  if (owner) {
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(owner));
-    return owner;
-  }
-
-  return {
-    id: "usr-owner",
-    fullName: "Propietario",
-    username: "admin",
-    pinCode: "1234",
-    role: "owner",
-    roleLabel: "Dueño",
-    allowedModules: ["pos", "inventory", "billing", "customers"],
-    active: true,
-    createdAt: new Date().toISOString(),
-  };
+  return null;
 };
 
-export const saveCurrentUser = (user: AppUser) => {
+export const saveCurrentUser = (user: AppUser | null) => {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+  if (!user) {
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+  } else {
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+  }
 };
 
 export const updateProductBatches = (productId: string, batches: Batch[]): Product[] => {
