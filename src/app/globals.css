@@ -100,3 +100,94 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ========================================================= */
+/* ESTILOS DE IMPRESIÓN TÉRMICA POS (80mm / 58mm / Continuo) */
+/* ========================================================= */
+@media print {
+  @page {
+    margin: 0 !important;
+    size: auto !important;
+  }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Ocultar elementos generales de la aplicación */
+  header,
+  footer,
+  aside,
+  nav,
+  button,
+  .no-print {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Desactivar fondos oscuros, bordes y efectos de vidrio en modales al imprimir */
+  .fixed,
+  .backdrop-blur-xs,
+  .backdrop-blur-sm,
+  .backdrop-blur-md,
+  .backdrop-blur-xl {
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Aislar y posicionar el ticket térmico al inicio de la página */
+  .printable-thermal-ticket {
+    display: block !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    margin: 0 !important;
+    padding: 2mm 3mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    width: 76mm !important;
+    max-width: 100% !important;
+    page-break-inside: avoid !important;
+    page-break-after: avoid !important;
+    page-break-before: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Ancho para rollos de 58mm */
+  .printable-thermal-ticket-58mm {
+    width: 52mm !important;
+    max-width: 52mm !important;
+  }
+
+  /* Asegurar que el texto sea negro puro y contrastado en papel térmico */
+  .printable-thermal-ticket,
+  .printable-thermal-ticket * {
+    color: #000000 !important;
+    text-shadow: none !important;
+    border-color: #000000 !important;
+  }
+
+  /* Logotipo monocromático para térmica */
+  .printable-thermal-ticket img {
+    filter: grayscale(100%) contrast(150%) !important;
+  }
+}
+

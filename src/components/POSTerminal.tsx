@@ -36,6 +36,7 @@ import {
   getCurrentUser
 } from "@/lib/offlineStore";
 import { printReceiptViaBluetooth } from "@/lib/bluetoothPrinter";
+import { printThermalReceipt } from "@/lib/thermalPrintService";
 
 interface POSTerminalProps {
   tenant: TenantSettings;
@@ -1406,7 +1407,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
           <div className="w-full max-w-sm bg-white dark:bg-[#1c1c1e] text-neutral-900 dark:text-neutral-100 rounded-3xl p-6 shadow-2xl border border-neutral-200 dark:border-neutral-800 space-y-4">
             
-            <div className="flex items-center justify-between pb-3 border-b border-neutral-200 dark:border-neutral-800">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-200 dark:border-neutral-800 no-print">
               <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-semibold text-xs">
                 <FileCheck className="w-4 h-4" />
                 <span>Factura Emitida con Éxito</span>
@@ -1420,10 +1421,13 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
               </button>
             </div>
 
-            {/* Simulación de Ticket Térmico Imprimible */}
-            <div className={`p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 font-mono text-xs border border-dashed border-neutral-300 dark:border-neutral-700 space-y-2 ${
-              tenant.ticketFormat === "58mm" ? "max-w-[280px] mx-auto text-[11px]" : "w-full"
-            }`}>
+            {/* Simulación de Ticket Térmico Imprimible (Ajustado para 80mm / 58mm) */}
+            <div 
+              id="thermal-receipt-printable-sale"
+              className={`p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 font-mono text-xs border border-dashed border-neutral-300 dark:border-neutral-700 space-y-2 printable-thermal-ticket ${
+                tenant.ticketFormat === "58mm" ? "max-w-[280px] mx-auto text-[11px] printable-thermal-ticket-58mm" : "w-full"
+              }`}
+            >
               <div className="text-center pb-2 border-b border-dashed border-neutral-300 dark:border-neutral-700 space-y-0.5">
                 {tenant.showLogoOnTicket !== false && tenant.logoUrl && (
                   <div className="flex justify-center mb-1.5 animate-fadeIn">
@@ -1552,7 +1556,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
 
             {/* Notificación de resultado de impresión Bluetooth */}
             {btPrintMessage && (
-              <div className={`p-2.5 rounded-xl text-center text-xs font-semibold animate-fadeIn ${
+              <div className={`p-2.5 rounded-xl text-center text-xs font-semibold animate-fadeIn no-print ${
                 btPrintMessage.success 
                   ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" 
                   : "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
@@ -1561,7 +1565,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 no-print">
               <button
                 type="button"
                 onClick={async () => {
@@ -1576,7 +1580,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
                   }
                 }}
                 disabled={isPrintingBt}
-                className="flex-1 py-2.5 px-3 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
+                className="flex-1 py-2.5 px-3 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
               >
                 <Bluetooth className="w-3.5 h-3.5" />
                 <span>{isPrintingBt ? "Imprimiendo..." : "Imprimir Térmica Bluetooth"}</span>
@@ -1584,17 +1588,18 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
 
               <button
                 type="button"
-                onClick={() => window.print()}
-                className="py-2.5 px-3 rounded-xl bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 transition-all"
+                onClick={() => printThermalReceipt("thermal-receipt-printable-sale", tenant.ticketFormat, `Factura_${lastSale.invoiceNumber}`)}
+                className="py-2.5 px-3 rounded-xl bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                title="Imprime ajustado al papel térmico de 80mm o 58mm sin fondos ni botones"
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span>Sistema / PDF</span>
+                <span>Imprimir Térmica / PDF</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowReceiptModal(false)}
-                className="py-2.5 px-3 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 text-neutral-600 dark:text-neutral-400 text-xs font-semibold hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                className="py-2.5 px-3 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 text-neutral-600 dark:text-neutral-400 text-xs font-semibold hover:bg-neutral-200 dark:hover:bg-neutral-700 cursor-pointer"
               >
                 Cerrar
               </button>
@@ -1610,7 +1615,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
           <div className="w-full max-w-sm bg-white dark:bg-[#1c1c1e] text-neutral-900 dark:text-neutral-100 rounded-3xl p-6 shadow-2xl border border-neutral-200 dark:border-neutral-800 space-y-4">
             
-            <div className="flex items-center justify-between pb-3 border-b border-neutral-200 dark:border-neutral-800">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-200 dark:border-neutral-800 no-print">
               <div className="flex items-center gap-2 text-apple-blue font-bold text-xs">
                 <FileText className="w-4 h-4" />
                 <span>Comprobante de Cierre de Caja (Z)</span>
@@ -1624,7 +1629,12 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
               </button>
             </div>
 
-            <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 font-mono text-xs border border-dashed border-neutral-300 dark:border-neutral-700 space-y-2">
+            <div 
+              id="thermal-receipt-printable-cut"
+              className={`p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 font-mono text-xs border border-dashed border-neutral-300 dark:border-neutral-700 space-y-2 printable-thermal-ticket ${
+                tenant.ticketFormat === "58mm" ? "printable-thermal-ticket-58mm" : ""
+              }`}
+            >
               <div className="text-center pb-2 border-b border-dashed border-neutral-300 dark:border-neutral-700">
                 <p className="font-bold text-sm uppercase">{tenant.name}</p>
                 <p className="text-[10px] text-neutral-500">CORTE DE CAJA / ARQUEO DE TURNO</p>
@@ -1688,11 +1698,11 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
               )}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 no-print">
               <button
                 type="button"
-                onClick={() => window.print()}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-semibold shadow-sm flex items-center justify-center gap-1.5"
+                onClick={() => printThermalReceipt("thermal-receipt-printable-cut", tenant.ticketFormat, `Corte_Z_${lastClosedSessionReceipt.id}`)}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-semibold shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Printer className="w-3.5 h-3.5" />
                 <span>Imprimir Corte</span>
@@ -1700,7 +1710,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
               <button
                 type="button"
                 onClick={() => setLastClosedSessionReceipt(null)}
-                className="py-2.5 px-4 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-semibold hover:bg-neutral-200"
+                className="py-2.5 px-4 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-semibold hover:bg-neutral-200 cursor-pointer"
               >
                 Aceptar
               </button>
