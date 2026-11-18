@@ -302,6 +302,9 @@ export default function Home() {
               products={products}
               customers={customers}
               sales={sales}
+              vetPatients={vetPatients}
+              clinicalPatients={clinicalPatients}
+              users={users}
               darkMode={darkMode}
               onNavigate={(v) => setActiveView(v)}
               onOpenSettingsWizard={() => setActiveView("settings")}
