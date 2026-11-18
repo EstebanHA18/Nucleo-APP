@@ -315,6 +315,9 @@ export default function Home() {
               products={products}
               customers={customers}
               sales={sales}
+              vetPatients={vetPatients}
+              clinicalPatients={clinicalPatients}
+              users={users}
               onNavigate={(v) => setActiveView(v)}
             />
           )}
