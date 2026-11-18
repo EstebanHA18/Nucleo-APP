@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { 
   Users, 
   Receipt, 
@@ -18,11 +18,8 @@ import {
   Dog,
   Stethoscope,
   ArrowUpRight,
-  Radio,
-  CheckCircle2,
-  Sparkles,
-  Wifi,
-  WifiOff
+  RotateCcw,
+  GripVertical
 } from "lucide-react";
 import { TenantSettings, Product, Customer, Sale, ModuleKey, PetPatient, ClinicalPatient, AppUser } from "@/types";
 import { getCurrentCashSession } from "@/lib/offlineStore";
@@ -38,6 +35,23 @@ interface SpatialCanvasProps {
   darkMode?: boolean;
   onNavigate: (view: string) => void;
   onOpenSettingsWizard: () => void;
+}
+
+interface NodePosition {
+  x: number;
+  y: number;
+}
+
+interface Star {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  baseAlpha: number;
+  pulseSpeed: number;
+  pulsePhase: number;
+  hue: "cyan" | "white" | "blue" | "purple";
 }
 
 export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
@@ -59,6 +73,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
   const [latency, setLatency] = useState<number | null>(14);
   const [isPinging, setIsPinging] = useState<boolean>(false);
 
+  // Ping en tiempo real sin bloquear el render del canvas
   useEffect(() => {
     let isMounted = true;
 
@@ -90,7 +105,6 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
     };
 
     measurePing();
-    // Medir periódicamente cada 8 segundos de forma asíncrona en segundo plano
     const interval = setInterval(measurePing, 8000);
 
     return () => {
@@ -99,11 +113,14 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
     };
   }, []);
 
-  // Refs para medir coordenadas reales de los nodos y animar en el canvas
+  // Refs de elementos
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const posNodeRef = useRef<HTMLDivElement>(null);
   const satNodeRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // Estrellas persistentes en useRef para que NUNCA se reinicien al actualizar estados
+  const starsRef = useRef<Star[]>([]);
 
   // Métricas dinámicas calculadas
   const lowStockProducts = products.filter((p) => p.stock <= p.minStock);
@@ -376,35 +393,156 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
     ? activeSatelliteKeys 
     : (["customers", "inventory", "reports", "billing"] as ModuleKey[]);
 
-  // 6 Posiciones orbitales para el diseño espacial de constelación alrededor del POS central
-  const orbitCoordinates = [
-    { 
-      posClass: "top-6 md:top-8 left-3 md:left-8", 
-      animClass: "animate-float-slow", 
-    },
-    { 
-      posClass: "top-6 md:top-8 right-3 md:right-8", 
-      animClass: "animate-float-reverse", 
-    },
-    { 
-      posClass: "top-1/2 -translate-y-1/2 left-2 md:left-5", 
-      animClass: "animate-float-delayed", 
-    },
-    { 
-      posClass: "top-1/2 -translate-y-1/2 right-2 md:right-5", 
-      animClass: "animate-float-slow", 
-    },
-    { 
-      posClass: "bottom-6 md:bottom-8 left-3 md:left-8", 
-      animClass: "animate-float-delayed", 
-    },
-    { 
-      posClass: "bottom-6 md:bottom-8 right-3 md:right-8", 
-      animClass: "animate-float-reverse", 
-    },
-  ];
+  // Referencia a los satélites activos para que el canvas render loop no necesite recrearse
+  const satelliteKeysRef = useRef(satelliteKeys);
+  satelliteKeysRef.current = satelliteKeys;
 
-  // Bucle de animación para estrellas flotantes de fondo y pelotitas que viajan por los circuitos
+  // Cálculo de la altura total extendida del lienzo según la cantidad de nodos satélites
+  const rowsCount = Math.max(2, Math.ceil(satelliteKeys.length / 2));
+  const canvasTotalHeight = Math.max(880, rowsCount * 280 + 300);
+
+  // =========================================================
+  // SISTEMA DE ARRASTRE LIBRE Y POSICIONAMIENTO DE NODOS
+  // =========================================================
+  const [nodePositions, setNodePositions] = useState<Record<string, NodePosition>>({});
+  const positionsRef = useRef<Record<string, NodePosition>>({});
+  const isDraggingRef = useRef<{ key: string; startX: number; startY: number; origX: number; origY: number; moved: boolean } | null>(null);
+
+  // Función para calcular posiciones predeterminadas limpias y espaciadas
+  const computeDefaultPositions = useCallback((containerWidth: number) => {
+    const w = containerWidth || 1050;
+    const posW = 360;
+    const satW = 270;
+
+    const centerX = Math.max(20, Math.round((w - posW) / 2));
+    const leftX = Math.max(20, Math.round(w * 0.04));
+    const rightX = Math.max(leftX + satW + 20, Math.round(w * 0.96 - satW));
+
+    const defaults: Record<string, NodePosition> = {
+      pos: { x: centerX, y: 240 },
+    };
+
+    satelliteKeys.forEach((key, idx) => {
+      const row = Math.floor(idx / 2);
+      const isRight = idx % 2 === 1;
+      const x = isRight ? rightX : leftX;
+      // Espaciado vertical holgado hacia abajo para que jamás colisionen
+      const y = 80 + row * 280;
+      defaults[key] = { x, y };
+    });
+
+    return defaults;
+  }, [satelliteKeys]);
+
+  // Inicializar o cargar posiciones guardadas desde localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const container = containerRef.current;
+    const width = container?.clientWidth || 1050;
+
+    const storageKey = `nucleo_spatial_coords_${tenant.id}`;
+    let saved: Record<string, NodePosition> | null = null;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) saved = JSON.parse(raw);
+    } catch {}
+
+    const defaults = computeDefaultPositions(width);
+    const merged = { ...defaults };
+
+    if (saved) {
+      Object.keys(saved).forEach((k) => {
+        if (saved[k] && typeof saved[k].x === "number" && typeof saved[k].y === "number") {
+          merged[k] = saved[k];
+        }
+      });
+    }
+
+    setNodePositions(merged);
+    positionsRef.current = merged;
+  }, [tenant.id, computeDefaultPositions]);
+
+  // Restablecer posiciones
+  const handleResetPositions = () => {
+    const container = containerRef.current;
+    const width = container?.clientWidth || 1050;
+    const defaults = computeDefaultPositions(width);
+    setNodePositions(defaults);
+    positionsRef.current = defaults;
+    try {
+      localStorage.removeItem(`nucleo_spatial_coords_${tenant.id}`);
+    } catch {}
+  };
+
+  // Manejador de inicio de arrastre (PointerDown)
+  const handlePointerDown = (key: string, e: React.PointerEvent) => {
+    // Si hizo clic en un botón interno (como Abrir POS), no iniciar arrastre
+    const target = e.target as HTMLElement;
+    if (target.closest("button") || target.closest("a")) return;
+
+    e.preventDefault();
+    const current = positionsRef.current[key] || { x: 0, y: 0 };
+    isDraggingRef.current = {
+      key,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: current.x,
+      origY: current.y,
+      moved: false,
+    };
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      if (!isDraggingRef.current) return;
+      const dx = moveEvent.clientX - isDraggingRef.current.startX;
+      const dy = moveEvent.clientY - isDraggingRef.current.startY;
+
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        isDraggingRef.current.moved = true;
+      }
+
+      const container = containerRef.current;
+      const containerW = container?.clientWidth || 1050;
+      const cardW = isDraggingRef.current.key === "pos" ? 360 : 270;
+
+      const newX = Math.max(10, Math.min(containerW - cardW - 10, isDraggingRef.current.origX + dx));
+      const newY = Math.max(10, Math.min(canvasTotalHeight - 180, isDraggingRef.current.origY + dy));
+
+      const updated = {
+        ...positionsRef.current,
+        [isDraggingRef.current.key]: { x: newX, y: newY },
+      };
+      positionsRef.current = updated;
+      setNodePositions(updated);
+    };
+
+    const handlePointerUp = () => {
+      if (isDraggingRef.current) {
+        if (!isDraggingRef.current.moved) {
+          // Si solo hizo clic sin arrastrar, abrir inspector
+          setSelectedNodeKey(isDraggingRef.current.key);
+        } else {
+          // Guardar posiciones persistentes
+          try {
+            localStorage.setItem(
+              `nucleo_spatial_coords_${tenant.id}`,
+              JSON.stringify(positionsRef.current)
+            );
+          } catch {}
+        }
+      }
+      isDraggingRef.current = null;
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  };
+
+  // =========================================================
+  // BUCLE DE ANIMACIÓN DE ESTRELLAS Y PELOTITAS VIAJERAS (60 FPS)
+  // Las estrellas se conservan en starsRef y NUNCA se reinician
+  // =========================================================
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -417,59 +555,49 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
     let width = 0;
     let height = 0;
 
-    interface Star {
-      x: number;
-      y: number;
-      vx: number;
-      vy: number;
-      radius: number;
-      baseAlpha: number;
-      pulseSpeed: number;
-      pulsePhase: number;
-      hue: "cyan" | "white" | "blue" | "purple";
-    }
-
-    const stars: Star[] = [];
-    const NUM_STARS = 75;
-
     const resize = () => {
       if (!container || !canvas) return;
       const rect = container.getBoundingClientRect();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       width = rect.width;
-      height = rect.height;
+      height = canvasTotalHeight;
       canvas.width = width * dpr;
       canvas.height = height * dpr;
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.scale(dpr, dpr);
+
+      // Si las estrellas aún no han sido creadas, inicializarlas por toda la altura extendida
+      if (starsRef.current.length === 0) {
+        const hues: ("cyan" | "white" | "blue" | "purple")[] = ["cyan", "white", "blue", "purple"];
+        const NUM_STARS = Math.max(80, Math.round((height / 800) * 80));
+        for (let i = 0; i < NUM_STARS; i++) {
+          starsRef.current.push({
+            x: Math.random() * (width || 1000),
+            y: Math.random() * (height || 900),
+            vx: (Math.random() - 0.5) * 0.4,
+            vy: (Math.random() - 0.5) * 0.4,
+            radius: Math.random() * 1.8 + 0.8,
+            baseAlpha: Math.random() * 0.45 + 0.25,
+            pulseSpeed: 0.0015 + Math.random() * 0.002,
+            pulsePhase: Math.random() * Math.PI * 2,
+            hue: hues[Math.floor(Math.random() * hues.length)],
+          });
+        }
+      }
     };
 
     resize();
     window.addEventListener("resize", resize);
 
-    const hues: ("cyan" | "white" | "blue" | "purple")[] = ["cyan", "white", "blue", "purple"];
-    for (let i = 0; i < NUM_STARS; i++) {
-      stars.push({
-        x: Math.random() * (width || 800),
-        y: Math.random() * (height || 600),
-        vx: (Math.random() - 0.5) * 0.4,
-        vy: (Math.random() - 0.5) * 0.4,
-        radius: Math.random() * 1.8 + 0.8,
-        baseAlpha: Math.random() * 0.45 + 0.25,
-        pulseSpeed: 0.0015 + Math.random() * 0.002,
-        pulsePhase: Math.random() * Math.PI * 2,
-        hue: hues[Math.floor(Math.random() * hues.length)],
-      });
-    }
-
     const render = (now: number) => {
       ctx.clearRect(0, 0, width, height);
 
       const isDark = document.documentElement.classList.contains("dark");
+      const stars = starsRef.current;
 
-      // 1. DIBUJAR Y DESPLAZAR ESTRELLAS / PELOTITAS DE FONDO
+      // 1. DIBUJAR Y DESPLAZAR ESTRELLAS FLUIDAMENTE (SIN REINICIAR)
       for (const s of stars) {
         s.x += s.vx;
         s.y += s.vy;
@@ -514,7 +642,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
         }
       }
 
-      // 2. DIBUJAR LÍNEAS DE CIRCUITO Y PELOTITAS VIAJERAS ACTIVAS A LOS NODOS
+      // 2. DIBUJAR LÍNEAS BÉZIER Y PELOTITAS VIAJERAS ENTRE NODOS DINÁMICOS
       const containerRect = container.getBoundingClientRect();
       const posNode = posNodeRef.current;
 
@@ -525,8 +653,9 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
           y: posRect.top + posRect.height / 2 - containerRect.top,
         };
 
-        const orbitalKeys = satelliteKeys.slice(0, 6);
-        orbitalKeys.forEach((key, idx) => {
+        const currentSatKeys = satelliteKeysRef.current;
+
+        currentSatKeys.forEach((key, idx) => {
           const satNode = satNodeRefs.current[idx];
           if (!satNode) return;
 
@@ -569,7 +698,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
             };
           };
 
-          // PELOTITA 1: VIAJA DEL SATÉLITE AL POS CENTRAL
+          // PELOTITA 1: SATÉLITE -> POS CENTRAL
           const speed1 = 2800 + idx * 400;
           const t1 = ((now + idx * 600) % speed1) / speed1;
           const pt1 = getBezierPoint(t1);
@@ -601,7 +730,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
           ctx.fill();
           ctx.shadowBlur = 0;
 
-          // PELOTITA 2: DE RETORNO (POS -> SATÉLITE)
+          // PELOTITA 2: RETORNO POS -> SATÉLITE
           const speed2 = 3300 + idx * 300;
           const t2 = 1 - (((now + 1200 + idx * 400) % speed2) / speed2);
           const pt2 = getBezierPoint(t2);
@@ -625,34 +754,37 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
       cancelAnimationFrame(animId);
       window.removeEventListener("resize", resize);
     };
-  }, [satelliteKeys, darkMode]);
+  }, [canvasTotalHeight]);
 
   const posCoreMeta = moduleMetaRegistry["pos"];
   const activeInspectorMeta = selectedNodeKey ? moduleMetaRegistry[selectedNodeKey] : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       
       {/* ========================================================= */}
-      {/* 1. LIENZO ESPACIAL DE CONSTELACIÓN (NODOS ORBITALES)      */}
+      {/* LIENZO ESPACIAL EXTENDIDO DINÁMICAMENTE HACIA ABAJO        */}
+      {/* Todos los nodos viven aquí y son arrastrables libremente   */}
       {/* ========================================================= */}
       <div 
         ref={containerRef}
-        className="relative w-full min-h-[760px] md:h-[800px] rounded-3xl bg-slate-100/90 dark:bg-[#0d0e12] border border-slate-300/80 dark:border-neutral-800/80 overflow-hidden select-none p-4 md:p-6 transition-colors duration-300 shadow-xl dark:shadow-2xl"
+        style={{ minHeight: `${canvasTotalHeight}px` }}
+        className="relative w-full rounded-3xl bg-slate-100/90 dark:bg-[#0d0e12] border border-slate-300/80 dark:border-neutral-800/80 overflow-hidden select-none p-4 md:p-6 transition-colors duration-300 shadow-xl dark:shadow-2xl"
       >
-        {/* Canvas interactivo de estrellas flotantes y circuitos con pelotitas viajeras */}
+        {/* Canvas interactivo de estrellas flotantes (fondo continuo hacia abajo) */}
         <canvas 
           ref={canvasRef} 
           className="absolute inset-0 w-full h-full pointer-events-none z-0" 
         />
 
-        {/* Bioluminiscencia de fondo */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] h-[480px] bg-apple-blue/10 dark:bg-apple-blue/15 rounded-full blur-[120px] pointer-events-none animate-pulse-glow" />
-        <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-purple-500/10 rounded-full blur-[90px] pointer-events-none" />
-        <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-emerald-500/10 rounded-full blur-[90px] pointer-events-none" />
+        {/* Bioluminiscencia de fondo distribuida en la altura extendida */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[480px] h-[480px] bg-apple-blue/10 dark:bg-apple-blue/15 rounded-full blur-[120px] pointer-events-none animate-pulse-glow" />
+        <div className="absolute top-1/3 left-1/4 w-72 h-72 bg-purple-500/10 rounded-full blur-[90px] pointer-events-none" />
+        <div className="absolute top-2/3 right-1/4 w-80 h-80 bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute bottom-1/6 left-1/3 w-72 h-72 bg-amber-500/10 rounded-full blur-[90px] pointer-events-none" />
 
-        {/* Barra superior de telemetría tipo Apple UI con medición de latencia en tiempo real */}
-        <div className="relative z-20 flex flex-wrap items-center justify-between gap-3 px-2 mb-2">
+        {/* Barra superior de telemetría con latencia en vivo y controles */}
+        <div className="relative z-30 flex flex-wrap items-center justify-between gap-3 px-2 mb-6">
           <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-neutral-200 dark:border-neutral-800 shadow-sm text-xs">
             <span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
             <span className="font-semibold text-neutral-800 dark:text-neutral-200">
@@ -660,12 +792,12 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
             </span>
             <span className="text-neutral-300 dark:text-neutral-600">/</span>
             <span className="text-neutral-500 dark:text-neutral-400 font-mono">
-              {tenant.activeModules.length} Módulos Activos
+              {tenant.activeModules.length} Módulos Conectados
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* Medidor de latencia en tiempo real (ultra liviano, 0% impacto en rendimiento) */}
+          <div className="flex items-center gap-2.5">
+            {/* Medidor de latencia en tiempo real */}
             <div className="flex items-center gap-2 text-[11px] font-mono text-neutral-500 dark:text-neutral-400 px-3 py-1 rounded-full bg-white/80 dark:bg-neutral-900/80 border border-neutral-200/90 dark:border-neutral-800/80 shadow-2xs">
               <span className={`w-2 h-2 rounded-full transition-colors ${
                 latency === null ? "bg-neutral-400" :
@@ -684,6 +816,17 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
                 Sync: Local ⇄ Nube
               </span>
             </div>
+
+            {/* Botón para restablecer posiciones de los nodos */}
+            <button
+              type="button"
+              onClick={handleResetPositions}
+              className="px-3 py-1.5 rounded-full bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300 text-xs font-medium transition-all flex items-center gap-1.5 border border-neutral-200 dark:border-neutral-700/80 shadow-2xs"
+              title="Restablecer posiciones predeterminadas de los nodos"
+            >
+              <RotateCcw className="w-3 h-3 text-neutral-400" />
+              <span className="hidden sm:inline">Ordenar Nodos</span>
+            </button>
 
             <button
               type="button"
@@ -705,110 +848,127 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
           </div>
         </div>
 
-        {/* LIENZO ESPACIAL CONSTELACIÓN: Posiciones orbitales flotantes */}
-        <div className="relative z-10 w-full h-[680px] flex items-center justify-center">
+        {/* HINT VISUAL: NODOS ARRASTRABLES */}
+        <div className="relative z-20 flex items-center justify-between px-3 mb-2 text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
+          <span className="flex items-center gap-1.5">
+            <GripVertical className="w-3.5 h-3.5 text-neutral-400" />
+            <span>Haz clic y arrastra cualquier nodo para organizarlo libremente en el espacio</span>
+          </span>
+          <span>{satelliteKeys.length} nodos activos orbitales</span>
+        </div>
 
-          {/* ========================================================= */}
-          {/* NODO NUCLEAR CENTRAL: POS & VENTAS (Flotando en el centro) */}
-          {/* ========================================================= */}
-          <div 
-            ref={posNodeRef}
-            onClick={() => setSelectedNodeKey("pos")}
-            className={`cursor-pointer transition-all duration-300 z-10 w-[330px] sm:w-[370px] rounded-3xl p-5 md:p-6 bg-white/95 dark:bg-[#16171d]/90 backdrop-blur-2xl border-2 ${
-              selectedNodeKey === "pos"
-                ? "border-apple-blue ring-4 ring-apple-blue/20 dark:ring-apple-blue/30 shadow-[0_0_40px_rgba(0,122,255,0.3)] scale-105"
-                : "border-apple-blue/40 hover:border-apple-blue shadow-[0_12px_36px_rgba(0,0,0,0.08)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.8)] hover:shadow-[0_0_35px_rgba(0,122,255,0.25)] hover:scale-[1.02]"
-            } animate-float-slow`}
-          >
-            {/* Header del Nodo Central */}
-            <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-neutral-100 dark:border-neutral-800">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-apple-blue text-white flex items-center justify-center shadow-lg shadow-apple-blue/30">
-                  <Receipt className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-mono font-bold text-apple-blue tracking-wider block">
-                    NODO NUCLEAR 02
-                  </span>
-                  <h3 className="text-sm font-bold text-neutral-900 dark:text-white tracking-tight">
-                    {posCoreMeta.title}
-                  </h3>
-                </div>
+        {/* ========================================================= */}
+        {/* NODO NUCLEAR CENTRAL: POS & VENTAS (ARRASTRABLE)           */}
+        {/* ========================================================= */}
+        <div 
+          ref={posNodeRef}
+          onPointerDown={(e) => handlePointerDown("pos", e)}
+          style={{
+            transform: `translate3d(${nodePositions["pos"]?.x ?? 340}px, ${nodePositions["pos"]?.y ?? 240}px, 0)`,
+          }}
+          className={`absolute top-0 left-0 transition-shadow duration-200 z-20 w-[330px] sm:w-[370px] rounded-3xl p-5 md:p-6 bg-white/95 dark:bg-[#16171d]/90 backdrop-blur-2xl border-2 cursor-grab active:cursor-grabbing ${
+            selectedNodeKey === "pos"
+              ? "border-apple-blue ring-4 ring-apple-blue/20 dark:ring-apple-blue/30 shadow-[0_0_40px_rgba(0,122,255,0.3)] scale-[1.02]"
+              : "border-apple-blue/40 hover:border-apple-blue shadow-[0_12px_36px_rgba(0,0,0,0.08)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.8)] hover:shadow-[0_0_35px_rgba(0,122,255,0.25)]"
+          }`}
+        >
+          {/* Header del Nodo Central */}
+          <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-neutral-100 dark:border-neutral-800">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-apple-blue text-white flex items-center justify-center shadow-lg shadow-apple-blue/30">
+                <Receipt className="w-5 h-5" />
               </div>
+              <div>
+                <span className="text-[10px] font-mono font-bold text-apple-blue tracking-wider block">
+                  NODO NUCLEAR 02
+                </span>
+                <h3 className="text-sm font-bold text-neutral-900 dark:text-white tracking-tight">
+                  {posCoreMeta.title}
+                </h3>
+              </div>
+            </div>
 
+            <div className="flex items-center gap-1.5">
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-apple-blue/15 text-apple-blue border border-apple-blue/30 font-mono">
                 CORE
               </span>
-            </div>
-
-            {/* Caja Interna de Métrica de Turno */}
-            <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-[#0f1015]/90 border border-neutral-200/80 dark:border-neutral-800/90 mb-3.5">
-              <span className="text-[10px] font-mono text-neutral-500 dark:text-neutral-400 uppercase tracking-widest block font-medium">
-                VENTAS HOY (TURNO)
-              </span>
-              <div className="text-2xl sm:text-3xl font-extrabold text-neutral-900 dark:text-white font-mono tracking-tight mt-1">
-                {posCoreMeta.statMain}
-              </div>
-              <span className="text-[11px] text-neutral-600 dark:text-neutral-400 font-mono mt-1 block">
-                {posCoreMeta.statSub}
-              </span>
-            </div>
-
-            {/* Footer del Nodo Central */}
-            <div className="flex items-center justify-between text-xs pt-1">
-              <span className="text-neutral-500 dark:text-neutral-400 font-mono text-[11px]">
-                Tickets: {sales.length + 48} transacciones
-              </span>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onNavigate("pos");
-                }}
-                className="text-apple-blue hover:text-apple-blue-hover font-semibold text-xs flex items-center gap-1 group transition-colors"
-              >
-                <span>Abrir POS</span>
-                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-              </button>
+              <GripVertical className="w-3.5 h-3.5 text-neutral-400" />
             </div>
           </div>
 
-          {/* ========================================================= */}
-          {/* NODOS SATÉLITE FLOTANTES EN ÓRBITA (HASTA 6 PRINCIPALES)  */}
-          {/* ========================================================= */}
-          {satelliteKeys.slice(0, 6).map((key, index) => {
-            const meta = moduleMetaRegistry[key];
-            if (!meta) return null;
-            const isSelected = selectedNodeKey === key;
-            const coord = orbitCoordinates[index] || orbitCoordinates[0];
+          {/* Caja Interna de Métrica de Turno */}
+          <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-[#0f1015]/90 border border-neutral-200/80 dark:border-neutral-800/90 mb-3.5 pointer-events-none">
+            <span className="text-[10px] font-mono text-neutral-500 dark:text-neutral-400 uppercase tracking-widest block font-medium">
+              VENTAS HOY (TURNO)
+            </span>
+            <div className="text-2xl sm:text-3xl font-extrabold text-neutral-900 dark:text-white font-mono tracking-tight mt-1">
+              {posCoreMeta.statMain}
+            </div>
+            <span className="text-[11px] text-neutral-600 dark:text-neutral-400 font-mono mt-1 block">
+              {posCoreMeta.statSub}
+            </span>
+          </div>
 
-            return (
-              <div
-                key={key}
-                ref={(el) => { satNodeRefs.current[index] = el; }}
-                onClick={() => setSelectedNodeKey(key)}
-                className={`absolute ${coord.posClass} ${coord.animClass} cursor-pointer transition-all duration-300 w-[230px] sm:w-[260px] rounded-2xl p-4 bg-white/95 dark:bg-[#14151b]/85 backdrop-blur-xl border ${
-                  isSelected
-                    ? "border-apple-blue ring-2 ring-apple-blue/40 shadow-[0_0_25px_rgba(0,122,255,0.25)] scale-105 z-30"
-                    : "border-neutral-200 dark:border-neutral-800/90 hover:border-apple-blue/50 dark:hover:border-neutral-700 hover:scale-105 shadow-[0_8px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.6)] z-10"
-                }`}
-              >
-                {/* Header de Satélite */}
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-neutral-100 dark:border-neutral-800/80">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-7 h-7 rounded-xl ${meta.colorScheme.bg}/15 dark:${meta.colorScheme.bg}/20 ${meta.colorScheme.accent} flex items-center justify-center border border-black/5 dark:border-white/5`}>
-                      {meta.icon}
-                    </div>
-                    <div>
-                      <span className="text-[9px] font-mono text-neutral-400 dark:text-neutral-500 font-semibold block leading-tight">
-                        NODO {meta.nodeNum}
-                      </span>
-                      <h4 className="text-xs font-bold text-neutral-900 dark:text-white tracking-tight truncate max-w-[125px]">
-                        {meta.title}
-                      </h4>
-                    </div>
+          {/* Footer del Nodo Central */}
+          <div className="flex items-center justify-between text-xs pt-1">
+            <span className="text-neutral-500 dark:text-neutral-400 font-mono text-[11px]">
+              Tickets: {sales.length + 48} transacciones
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigate("pos");
+              }}
+              className="text-apple-blue hover:text-apple-blue-hover font-semibold text-xs flex items-center gap-1 group transition-colors"
+            >
+              <span>Abrir POS</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+            </button>
+          </div>
+        </div>
+
+        {/* ========================================================= */}
+        {/* TODOS LOS NODOS SATÉLITE ACTIVOS (ARRASTRABLES LIBREMENTE) */}
+        {/* Se extienden hacia abajo según los módulos habilitados     */}
+        {/* ========================================================= */}
+        {satelliteKeys.map((key, index) => {
+          const meta = moduleMetaRegistry[key];
+          if (!meta) return null;
+          const isSelected = selectedNodeKey === key;
+          const pos = nodePositions[key] || { x: 50, y: 100 + index * 260 };
+
+          return (
+            <div
+              key={key}
+              ref={(el) => { satNodeRefs.current[index] = el; }}
+              onPointerDown={(e) => handlePointerDown(key, e)}
+              style={{
+                transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
+              }}
+              className={`absolute top-0 left-0 transition-shadow duration-200 w-[240px] sm:w-[270px] rounded-2xl p-4 bg-white/95 dark:bg-[#14151b]/85 backdrop-blur-xl border cursor-grab active:cursor-grabbing ${
+                isSelected
+                  ? "border-apple-blue ring-2 ring-apple-blue/40 shadow-[0_0_25px_rgba(0,122,255,0.25)] scale-[1.02] z-30"
+                  : "border-neutral-200 dark:border-neutral-800/90 hover:border-apple-blue/50 dark:hover:border-neutral-700 shadow-[0_8px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.6)] z-10"
+              }`}
+            >
+              {/* Header de Satélite con Grip Handle */}
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-neutral-100 dark:border-neutral-800/80">
+                <div className="flex items-center gap-2">
+                  <div className={`w-7 h-7 rounded-xl ${meta.colorScheme.bg}/15 dark:${meta.colorScheme.bg}/20 ${meta.colorScheme.accent} flex items-center justify-center border border-black/5 dark:border-white/5`}>
+                    {meta.icon}
                   </div>
+                  <div>
+                    <span className="text-[9px] font-mono text-neutral-400 dark:text-neutral-500 font-semibold block leading-tight">
+                      NODO {meta.nodeNum}
+                    </span>
+                    <h4 className="text-xs font-bold text-neutral-900 dark:text-white tracking-tight truncate max-w-[125px]">
+                      {meta.title}
+                    </h4>
+                  </div>
+                </div>
 
+                <div className="flex items-center gap-1">
                   <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full font-mono ${
                     meta.badge.includes("bajo")
                       ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
@@ -816,167 +976,48 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
                   }`}>
                     {meta.badge}
                   </span>
-                </div>
-
-                {/* Métrica Principal */}
-                <div className="py-1">
-                  <div className="text-lg font-bold text-neutral-900 dark:text-white font-mono tracking-tight truncate">
-                    {meta.statMain}
-                  </div>
-                  <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug line-clamp-1">
-                    {meta.statSub}
-                  </p>
-                </div>
-
-                {/* Indicador de conexión activo */}
-                <div className="pt-2 mt-1 border-t border-neutral-100 dark:border-neutral-800/60 flex items-center justify-between text-[10px] text-neutral-500 dark:text-neutral-400">
-                  <span className="flex items-center gap-1 font-mono">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
-                    Conectado
-                  </span>
-                  <span className="text-apple-blue font-semibold hover:underline">
-                    Inspeccionar →
-                  </span>
+                  <GripVertical className="w-3 h-3 text-neutral-400" />
                 </div>
               </div>
-            );
-          })}
-        </div>
-      </div>
 
-      {/* ========================================================= */}
-      {/* 2. PANELES ACTIVOS DEL NEGOCIO // CUADROS DE INFORMACIÓN */}
-      {/* Se añaden reactivamente más abajo según los módulos      */}
-      {/* ========================================================= */}
-      <div className="space-y-4 pt-2">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-apple-blue animate-pulse" />
-              <h3 className="text-sm font-bold text-neutral-900 dark:text-white uppercase tracking-wider">
-                Paneles Activos del Negocio // Cuadros de Información & Telemetría
-              </h3>
+              {/* Métrica Principal */}
+              <div className="py-1 pointer-events-none">
+                <div className="text-lg font-bold text-neutral-900 dark:text-white font-mono tracking-tight truncate">
+                  {meta.statMain}
+                </div>
+                <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug line-clamp-1">
+                  {meta.statSub}
+                </p>
+              </div>
+
+              {/* Indicador de conexión activo y acción */}
+              <div className="pt-2 mt-1 border-t border-neutral-100 dark:border-neutral-800/60 flex items-center justify-between text-[10px] text-neutral-500 dark:text-neutral-400">
+                <span className="flex items-center gap-1 font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
+                  Conectado
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedNodeKey(key);
+                  }}
+                  className="text-apple-blue font-semibold hover:underline"
+                >
+                  Inspeccionar →
+                </button>
+              </div>
             </div>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Monitoreo en vivo de los {tenant.activeModules.length} módulos habilitados para <strong>{tenant.name}</strong>.
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-mono px-3 py-1 rounded-full bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 shadow-2xs">
-              {tenant.activeModules.length} Módulos Conectados a la Red
-            </span>
-          </div>
-        </div>
-
-        {/* Cuadros de información en cuadrícula (se van añadiendo según los paneles activos) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {tenant.activeModules.map((modKey) => {
-            const meta = moduleMetaRegistry[modKey];
-            if (!meta) return null;
-
-            return (
-              <div
-                key={modKey}
-                onClick={() => setSelectedNodeKey(modKey)}
-                className="p-5 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple hover:shadow-apple-hover transition-all duration-200 cursor-pointer flex flex-col justify-between group"
-              >
-                <div>
-                  {/* Top Bar del Cuadro */}
-                  <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-neutral-800/80 mb-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className={`w-8 h-8 rounded-xl ${meta.colorScheme.bg}/15 dark:${meta.colorScheme.bg}/20 ${meta.colorScheme.accent} flex items-center justify-center border border-black/5 dark:border-white/5`}>
-                        {meta.icon}
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-mono font-bold text-neutral-400 dark:text-neutral-500 block">
-                          NODO {meta.nodeNum} // {meta.category}
-                        </span>
-                        <h4 className="text-xs font-bold text-neutral-900 dark:text-white tracking-tight group-hover:text-apple-blue transition-colors">
-                          {meta.title}
-                        </h4>
-                      </div>
-                    </div>
-
-                    <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full font-mono ${
-                      meta.badge.includes("bajo")
-                        ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
-                        : meta.badge === "CORE"
-                        ? "bg-apple-blue/15 text-apple-blue border border-apple-blue/30"
-                        : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700"
-                    }`}>
-                      {meta.badge}
-                    </span>
-                  </div>
-
-                  {/* Métrica Principal del Módulo */}
-                  <div className="py-2">
-                    <span className="text-[10px] text-neutral-400 uppercase font-semibold font-mono block">
-                      Métrica en Vivo
-                    </span>
-                    <div className="text-2xl font-extrabold text-neutral-900 dark:text-white font-mono mt-0.5 tracking-tight">
-                      {meta.statMain}
-                    </div>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug">
-                      {meta.statSub}
-                    </p>
-                  </div>
-
-                  {/* Resumen de telemetría / último evento */}
-                  <div className="mt-2.5 p-2.5 rounded-xl bg-neutral-50 dark:bg-[#14151b] border border-neutral-100 dark:border-neutral-800/80">
-                    <span className="text-[9px] font-mono text-neutral-400 dark:text-neutral-500 uppercase block font-semibold mb-1">
-                      Última Telemetría
-                    </span>
-                    <p className="text-[11px] font-mono text-neutral-700 dark:text-neutral-300 truncate">
-                      {meta.events[0] || "Sistema sincronizado"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Footer de Acciones del Cuadro */}
-                <div className="pt-3.5 mt-3 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-1.5 text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Enlace activo
-                  </span>
-                  
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedNodeKey(modKey);
-                      }}
-                      className="text-neutral-500 hover:text-neutral-800 dark:hover:text-white font-medium text-[11px] px-2 py-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-                    >
-                      Inspeccionar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onNavigate(meta.actionView);
-                      }}
-                      className="text-apple-blue hover:text-apple-blue-hover font-semibold text-[11px] flex items-center gap-1 group-hover:translate-x-0.5 transition-transform"
-                    >
-                      <span>Abrir</span>
-                      <ArrowUpRight className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+          );
+        })}
       </div>
 
       {/* ========================================================= */}
-      {/* 3. SLIDE-OVER INSPECTOR LATERAL                            */}
-      {/* Se abre al hacer clic en cualquier nodo o cuadro           */}
+      {/* SLIDE-OVER INSPECTOR LATERAL                              */}
+      {/* Se abre al hacer clic o inspeccionar cualquier nodo       */}
       {/* ========================================================= */}
       {activeInspectorMeta && (
         <>
-          {/* Backdrop semi-transparente para cerrar al hacer clic afuera */}
           <div 
             onClick={() => setSelectedNodeKey(null)}
             className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-xs z-40 transition-opacity animate-fadeIn"
@@ -984,7 +1025,6 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
 
           <aside className="fixed top-0 right-0 h-full w-80 sm:w-96 bg-white/95 dark:bg-[#18191f]/95 backdrop-blur-2xl p-6 border-l border-neutral-200 dark:border-neutral-800 shadow-2xl z-50 flex flex-col justify-between animate-fadeIn text-neutral-800 dark:text-neutral-200">
             <div className="space-y-5">
-              {/* Header del Inspector con botón X que cierra */}
               <div className="flex items-center justify-between pb-3 border-b border-neutral-200/80 dark:border-neutral-800">
                 <span className="text-[10px] font-mono font-bold text-apple-blue uppercase tracking-wider">
                   {activeInspectorMeta.category}
