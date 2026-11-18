@@ -397,9 +397,10 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
   const satelliteKeysRef = useRef(satelliteKeys);
   satelliteKeysRef.current = satelliteKeys;
 
-  // Cálculo de la altura total extendida del lienzo según la cantidad de nodos satélites
-  const rowsCount = Math.max(2, Math.ceil(satelliteKeys.length / 2));
-  const canvasTotalHeight = Math.max(880, rowsCount * 280 + 300);
+  // Cálculo de la altura total balanceada del lienzo según la cantidad de nodos satélites
+  const rowsCount = Math.max(1, Math.ceil(satelliteKeys.length / 2));
+  // Altura total: 85px inicial + 160px por fila + 80px de margen inferior para que nunca se corte
+  const canvasTotalHeight = Math.max(580, 85 + rowsCount * 160 + 80);
 
   // =========================================================
   // SISTEMA DE ARRASTRE LIBRE Y POSICIONAMIENTO DE NODOS
@@ -408,39 +409,48 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
   const positionsRef = useRef<Record<string, NodePosition>>({});
   const isDraggingRef = useRef<{ key: string; startX: number; startY: number; origX: number; origY: number; moved: boolean } | null>(null);
 
-  // Función para calcular posiciones predeterminadas limpias y espaciadas
+  // Función para calcular posiciones predeterminadas limpias, simétricas y centradas
   const computeDefaultPositions = useCallback((containerWidth: number) => {
     const w = containerWidth || 1050;
-    const posW = 360;
-    const satW = 270;
+    const isCompact = w < 1024;
+    const posW = isCompact ? 320 : 360;
+    const satW = isCompact ? 240 : 270;
 
-    const centerX = Math.max(20, Math.round((w - posW) / 2));
-    const leftX = Math.max(20, Math.round(w * 0.04));
-    const rightX = Math.max(leftX + satW + 20, Math.round(w * 0.96 - satW));
+    const centerX = Math.max(10, Math.round((w - posW) / 2));
+    const leftX = Math.max(16, Math.round(w * 0.035));
+    const rightX = Math.max(leftX + satW + 20, Math.round(w - satW - Math.max(16, w * 0.035)));
+
+    const rows = Math.max(1, Math.ceil(satelliteKeys.length / 2));
+    const rowStep = 160;
+    const startY = 85;
+
+    // Calcular posición Y del nodo central POS para que quede perfectamente alineado y centrado
+    const totalSatSpan = (rows - 1) * rowStep + 130;
+    const posH = 215;
+    const centerY = startY + Math.max(0, Math.round((totalSatSpan - posH) / 2));
 
     const defaults: Record<string, NodePosition> = {
-      pos: { x: centerX, y: 240 },
+      pos: { x: centerX, y: centerY },
     };
 
     satelliteKeys.forEach((key, idx) => {
       const row = Math.floor(idx / 2);
       const isRight = idx % 2 === 1;
       const x = isRight ? rightX : leftX;
-      // Espaciado vertical holgado hacia abajo para que jamás colisionen
-      const y = 80 + row * 280;
+      const y = startY + row * rowStep;
       defaults[key] = { x, y };
     });
 
     return defaults;
   }, [satelliteKeys]);
 
-  // Inicializar o cargar posiciones guardadas desde localStorage
+  // Inicializar o cargar posiciones guardadas desde localStorage (v2 limpio)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const container = containerRef.current;
     const width = container?.clientWidth || 1050;
 
-    const storageKey = `nucleo_spatial_coords_${tenant.id}`;
+    const storageKey = `nucleo_spatial_coords_v2_${tenant.id}`;
     let saved: Record<string, NodePosition> | null = null;
     try {
       const raw = localStorage.getItem(storageKey);
@@ -470,6 +480,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
     setNodePositions(defaults);
     positionsRef.current = defaults;
     try {
+      localStorage.removeItem(`nucleo_spatial_coords_v2_${tenant.id}`);
       localStorage.removeItem(`nucleo_spatial_coords_${tenant.id}`);
     } catch {}
   };
@@ -502,10 +513,12 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
 
       const container = containerRef.current;
       const containerW = container?.clientWidth || 1050;
-      const cardW = isDraggingRef.current.key === "pos" ? 360 : 270;
+      const isCompact = containerW < 1024;
+      const cardW = isDraggingRef.current.key === "pos" ? (isCompact ? 320 : 360) : (isCompact ? 240 : 270);
+      const cardH = isDraggingRef.current.key === "pos" ? 215 : 130;
 
       const newX = Math.max(10, Math.min(containerW - cardW - 10, isDraggingRef.current.origX + dx));
-      const newY = Math.max(10, Math.min(canvasTotalHeight - 180, isDraggingRef.current.origY + dy));
+      const newY = Math.max(70, Math.min(canvasTotalHeight - cardH - 15, isDraggingRef.current.origY + dy));
 
       const updated = {
         ...positionsRef.current,
@@ -521,10 +534,10 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
           // Si solo hizo clic sin arrastrar, abrir inspector
           setSelectedNodeKey(isDraggingRef.current.key);
         } else {
-          // Guardar posiciones persistentes
+          // Guardar posiciones persistentes en v2
           try {
             localStorage.setItem(
-              `nucleo_spatial_coords_${tenant.id}`,
+              `nucleo_spatial_coords_v2_${tenant.id}`,
               JSON.stringify(positionsRef.current)
             );
           } catch {}
@@ -541,7 +554,10 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
 
   // =========================================================
   // BUCLE DE ANIMACIÓN DE ESTRELLAS Y PELOTITAS VIAJERAS (60 FPS)
-  // Las estrellas se conservan en starsRef y NUNCA se reinician
+  // OPTIMIZADO PARA MÁXIMO RENDIMIENTO AL HACER SCROLL:
+  // - Cero llamadas a getBoundingClientRect() en el render loop (lee coordenadas directamente de memoria)
+  // - DPR 1: 4x menos consumo de GPU/rasterizado
+  // - Halos con círculos directos sin filtros pesados de shadowBlur ni gradientes repetitivos
   // =========================================================
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -557,29 +573,26 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
 
     const resize = () => {
       if (!container || !canvas) return;
-      const rect = container.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      width = rect.width;
+      width = container.clientWidth || 1050;
       height = canvasTotalHeight;
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
+      // DPR 1 es óptimo para partículas de fondo: suave a 60/120fps sin lag al hacer scroll
+      canvas.width = width;
+      canvas.height = height;
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.scale(dpr, dpr);
 
-      // Si las estrellas aún no han sido creadas, inicializarlas por toda la altura extendida
+      // Inicializar estrellas si no existen
       if (starsRef.current.length === 0) {
         const hues: ("cyan" | "white" | "blue" | "purple")[] = ["cyan", "white", "blue", "purple"];
-        const NUM_STARS = Math.max(80, Math.round((height / 800) * 80));
+        const NUM_STARS = 45;
         for (let i = 0; i < NUM_STARS; i++) {
           starsRef.current.push({
             x: Math.random() * (width || 1000),
-            y: Math.random() * (height || 900),
-            vx: (Math.random() - 0.5) * 0.4,
-            vy: (Math.random() - 0.5) * 0.4,
-            radius: Math.random() * 1.8 + 0.8,
-            baseAlpha: Math.random() * 0.45 + 0.25,
+            y: Math.random() * (height || 700),
+            vx: (Math.random() - 0.5) * 0.35,
+            vy: (Math.random() - 0.5) * 0.35,
+            radius: Math.random() * 1.6 + 0.8,
+            baseAlpha: Math.random() * 0.4 + 0.2,
             pulseSpeed: 0.0015 + Math.random() * 0.002,
             pulsePhase: Math.random() * Math.PI * 2,
             hue: hues[Math.floor(Math.random() * hues.length)],
@@ -597,8 +610,9 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
       const isDark = document.documentElement.classList.contains("dark");
       const stars = starsRef.current;
 
-      // 1. DIBUJAR Y DESPLAZAR ESTRELLAS FLUIDAMENTE (SIN REINICIAR)
-      for (const s of stars) {
+      // 1. DIBUJAR Y DESPLAZAR ESTRELLAS FLUIDAMENTE
+      for (let i = 0; i < stars.length; i++) {
+        const s = stars[i];
         s.x += s.vx;
         s.y += s.vy;
         if (s.x < 0) s.x = width;
@@ -606,7 +620,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
         if (s.y < 0) s.y = height;
         if (s.y > height) s.y = 0;
 
-        const currentAlpha = Math.max(0.12, Math.min(0.95, s.baseAlpha + Math.sin(now * s.pulseSpeed + s.pulsePhase) * 0.22));
+        const currentAlpha = Math.max(0.12, Math.min(0.9, s.baseAlpha + Math.sin(now * s.pulseSpeed + s.pulsePhase) * 0.2));
 
         ctx.beginPath();
         ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
@@ -617,132 +631,132 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
           } else if (s.hue === "blue") {
             ctx.fillStyle = `rgba(0, 113, 227, ${currentAlpha})`;
           } else if (s.hue === "purple") {
-            ctx.fillStyle = `rgba(168, 85, 247, ${currentAlpha * 0.85})`;
+            ctx.fillStyle = `rgba(168, 85, 247, ${currentAlpha * 0.8})`;
           } else {
             ctx.fillStyle = `rgba(255, 255, 255, ${currentAlpha})`;
           }
         } else {
           if (s.hue === "cyan" || s.hue === "blue") {
-            ctx.fillStyle = `rgba(0, 113, 227, ${currentAlpha * 0.75})`;
+            ctx.fillStyle = `rgba(0, 113, 227, ${currentAlpha * 0.7})`;
           } else if (s.hue === "purple") {
-            ctx.fillStyle = `rgba(147, 51, 234, ${currentAlpha * 0.65})`;
+            ctx.fillStyle = `rgba(147, 51, 234, ${currentAlpha * 0.6})`;
           } else {
-            ctx.fillStyle = `rgba(71, 85, 105, ${currentAlpha * 0.7})`;
+            ctx.fillStyle = `rgba(71, 85, 105, ${currentAlpha * 0.65})`;
           }
         }
         ctx.fill();
 
-        if (s.radius > 1.8) {
+        if (s.radius > 1.7) {
           ctx.beginPath();
-          ctx.arc(s.x, s.y, s.radius * 2.3, 0, Math.PI * 2);
+          ctx.arc(s.x, s.y, s.radius * 2, 0, Math.PI * 2);
           ctx.fillStyle = isDark
-            ? `rgba(56, 189, 248, ${currentAlpha * 0.2})`
-            : `rgba(0, 113, 227, ${currentAlpha * 0.15})`;
+            ? `rgba(56, 189, 248, ${currentAlpha * 0.15})`
+            : `rgba(0, 113, 227, ${currentAlpha * 0.12})`;
           ctx.fill();
         }
       }
 
-      // 2. DIBUJAR LÍNEAS BÉZIER Y PELOTITAS VIAJERAS ENTRE NODOS DINÁMICOS
-      const containerRect = container.getBoundingClientRect();
-      const posNode = posNodeRef.current;
+      // 2. DIBUJAR LÍNEAS BÉZIER Y PELOTITAS VIAJERAS ENTRE NODOS
+      // Se leen coordenadas directamente de positionsRef sin tocar el DOM: Cero reflows en scroll
+      const posPos = positionsRef.current["pos"];
+      if (posPos && width > 0) {
+        const isCompact = width < 1024;
+        const posW = isCompact ? 320 : 360;
+        const satW = isCompact ? 240 : 270;
+        const posH = 215;
+        const satH = 130;
 
-      if (posNode && containerRect.width > 0) {
-        const posRect = posNode.getBoundingClientRect();
         const posCenter = {
-          x: posRect.left + posRect.width / 2 - containerRect.left,
-          y: posRect.top + posRect.height / 2 - containerRect.top,
+          x: posPos.x + posW / 2,
+          y: posPos.y + posH / 2,
         };
 
         const currentSatKeys = satelliteKeysRef.current;
 
-        currentSatKeys.forEach((key, idx) => {
-          const satNode = satNodeRefs.current[idx];
-          if (!satNode) return;
+        for (let idx = 0; idx < currentSatKeys.length; idx++) {
+          const key = currentSatKeys[idx];
+          const satPos = positionsRef.current[key];
+          if (!satPos) continue;
 
-          const satRect = satNode.getBoundingClientRect();
           const satCenter = {
-            x: satRect.left + satRect.width / 2 - containerRect.left,
-            y: satRect.top + satRect.height / 2 - containerRect.top,
+            x: satPos.x + satW / 2,
+            y: satPos.y + satH / 2,
           };
 
-          const curveOffset = satCenter.x < posCenter.x ? 35 : -35;
+          const curveOffset = satCenter.x < posCenter.x ? 28 : -28;
           const cp = {
             x: (satCenter.x + posCenter.x) / 2 + curveOffset,
             y: (satCenter.y + posCenter.y) / 2,
           };
 
           // Línea Bézier punteada de conexión
-          ctx.save();
           ctx.beginPath();
           ctx.moveTo(satCenter.x, satCenter.y);
           ctx.quadraticCurveTo(cp.x, cp.y, posCenter.x, posCenter.y);
           ctx.setLineDash([4, 6]);
-          ctx.lineWidth = 1.75;
+          ctx.lineWidth = 1.5;
           ctx.strokeStyle = isDark 
-            ? "rgba(56, 189, 248, 0.35)" 
-            : "rgba(0, 113, 227, 0.35)";
+            ? "rgba(56, 189, 248, 0.3)" 
+            : "rgba(0, 113, 227, 0.3)";
           ctx.stroke();
-          ctx.restore();
+          ctx.setLineDash([]);
 
           // Punto de anclaje
           ctx.beginPath();
-          ctx.arc(satCenter.x, satCenter.y, 3, 0, Math.PI * 2);
+          ctx.arc(satCenter.x, satCenter.y, 2.5, 0, Math.PI * 2);
           ctx.fillStyle = isDark ? "#38bdf8" : "#0071e3";
           ctx.fill();
 
-          const getBezierPoint = (t: number) => {
+          // Interpolación cuadrática de Bézier ultra liviana
+          const getBezierX = (t: number) => {
             const inv = 1 - t;
-            return {
-              x: inv * inv * satCenter.x + 2 * inv * t * cp.x + t * t * posCenter.x,
-              y: inv * inv * satCenter.y + 2 * inv * t * cp.y + t * t * posCenter.y,
-            };
+            return inv * inv * satCenter.x + 2 * inv * t * cp.x + t * t * posCenter.x;
+          };
+          const getBezierY = (t: number) => {
+            const inv = 1 - t;
+            return inv * inv * satCenter.y + 2 * inv * t * cp.y + t * t * posCenter.y;
           };
 
           // PELOTITA 1: SATÉLITE -> POS CENTRAL
-          const speed1 = 2800 + idx * 400;
-          const t1 = ((now + idx * 600) % speed1) / speed1;
-          const pt1 = getBezierPoint(t1);
+          const speed1 = 2600 + idx * 350;
+          const t1 = ((now + idx * 500) % speed1) / speed1;
+          const x1 = getBezierX(t1);
+          const y1 = getBezierY(t1);
 
-          for (let trail = 1; trail <= 3; trail++) {
-            const tTrail = Math.max(0, t1 - trail * 0.025);
-            const ptTrail = getBezierPoint(tTrail);
+          // Rastro liviano
+          for (let trail = 1; trail <= 2; trail++) {
+            const tTrail = Math.max(0, t1 - trail * 0.03);
             ctx.beginPath();
-            ctx.arc(ptTrail.x, ptTrail.y, Math.max(1, 3.5 - trail * 0.7), 0, Math.PI * 2);
+            ctx.arc(getBezierX(tTrail), getBezierY(tTrail), Math.max(1, 3 - trail), 0, Math.PI * 2);
             ctx.fillStyle = isDark
-              ? `rgba(56, 189, 248, ${0.4 - trail * 0.1})`
-              : `rgba(0, 113, 227, ${0.4 - trail * 0.1})`;
+              ? `rgba(56, 189, 248, ${0.35 - trail * 0.12})`
+              : `rgba(0, 113, 227, ${0.35 - trail * 0.12})`;
             ctx.fill();
           }
 
-          const grad = ctx.createRadialGradient(pt1.x, pt1.y, 1, pt1.x, pt1.y, 10);
-          grad.addColorStop(0, isDark ? "rgba(56, 189, 248, 0.85)" : "rgba(0, 113, 227, 0.75)");
-          grad.addColorStop(1, "rgba(56, 189, 248, 0)");
+          // Halo exterior rápido sin shadowBlur
           ctx.beginPath();
-          ctx.arc(pt1.x, pt1.y, 10, 0, Math.PI * 2);
-          ctx.fillStyle = grad;
+          ctx.arc(x1, y1, 6.5, 0, Math.PI * 2);
+          ctx.fillStyle = isDark ? "rgba(56, 189, 248, 0.22)" : "rgba(0, 113, 227, 0.18)";
           ctx.fill();
 
+          // Núcleo brillante
           ctx.beginPath();
-          ctx.arc(pt1.x, pt1.y, 4, 0, Math.PI * 2);
+          ctx.arc(x1, y1, 3.2, 0, Math.PI * 2);
           ctx.fillStyle = isDark ? "#ffffff" : "#0071e3";
-          ctx.shadowColor = isDark ? "#38bdf8" : "#0071e3";
-          ctx.shadowBlur = 8;
           ctx.fill();
-          ctx.shadowBlur = 0;
 
           // PELOTITA 2: RETORNO POS -> SATÉLITE
-          const speed2 = 3300 + idx * 300;
-          const t2 = 1 - (((now + 1200 + idx * 400) % speed2) / speed2);
-          const pt2 = getBezierPoint(t2);
+          const speed2 = 3200 + idx * 300;
+          const t2 = 1 - (((now + 1000 + idx * 400) % speed2) / speed2);
+          const x2 = getBezierX(t2);
+          const y2 = getBezierY(t2);
 
           ctx.beginPath();
-          ctx.arc(pt2.x, pt2.y, 2.7, 0, Math.PI * 2);
+          ctx.arc(x2, y2, 2.4, 0, Math.PI * 2);
           ctx.fillStyle = isDark ? "#34d399" : "#10b981";
-          ctx.shadowColor = isDark ? "#34d399" : "#10b981";
-          ctx.shadowBlur = 6;
           ctx.fill();
-          ctx.shadowBlur = 0;
-        });
+        }
       }
 
       animId = requestAnimationFrame(render);
@@ -774,7 +788,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
         {/* Canvas interactivo de estrellas flotantes (fondo continuo hacia abajo) */}
         <canvas 
           ref={canvasRef} 
-          className="absolute inset-0 w-full h-full pointer-events-none z-0" 
+          className="absolute inset-0 w-full h-full pointer-events-none z-0 transform-gpu" 
         />
 
         {/* Bioluminiscencia de fondo distribuida en la altura extendida */}
@@ -784,16 +798,23 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
         <div className="absolute bottom-1/6 left-1/3 w-72 h-72 bg-amber-500/10 rounded-full blur-[90px] pointer-events-none" />
 
         {/* Barra superior de telemetría con latencia en vivo y controles */}
-        <div className="relative z-30 flex flex-wrap items-center justify-between gap-3 px-2 mb-6">
-          <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-neutral-200 dark:border-neutral-800 shadow-sm text-xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
-            <span className="font-semibold text-neutral-800 dark:text-neutral-200">
-              Topología: Constelación {tenant.name}
-            </span>
-            <span className="text-neutral-300 dark:text-neutral-600">/</span>
-            <span className="text-neutral-500 dark:text-neutral-400 font-mono">
-              {tenant.activeModules.length} Módulos Conectados
-            </span>
+        <div className="relative z-30 flex flex-wrap items-center justify-between gap-3 px-1 mb-5">
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-neutral-200 dark:border-neutral-800 shadow-sm text-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
+              <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                Topología: Constelación {tenant.name}
+              </span>
+              <span className="text-neutral-300 dark:text-neutral-600">/</span>
+              <span className="text-neutral-500 dark:text-neutral-400 font-mono text-[11px]">
+                {satelliteKeys.length + 1} Nodos
+              </span>
+            </div>
+
+            <div className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/70 dark:bg-neutral-900/70 border border-neutral-200/80 dark:border-neutral-800/80 text-[11px] text-neutral-500 dark:text-neutral-400 font-mono shadow-2xs">
+              <GripVertical className="w-3.5 h-3.5 text-neutral-400" />
+              <span>Arrastra para organizar</span>
+            </div>
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -848,15 +869,6 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
           </div>
         </div>
 
-        {/* HINT VISUAL: NODOS ARRASTRABLES */}
-        <div className="relative z-20 flex items-center justify-between px-3 mb-2 text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
-          <span className="flex items-center gap-1.5">
-            <GripVertical className="w-3.5 h-3.5 text-neutral-400" />
-            <span>Haz clic y arrastra cualquier nodo para organizarlo libremente en el espacio</span>
-          </span>
-          <span>{satelliteKeys.length} nodos activos orbitales</span>
-        </div>
-
         {/* ========================================================= */}
         {/* NODO NUCLEAR CENTRAL: POS & VENTAS (ARRASTRABLE)           */}
         {/* ========================================================= */}
@@ -864,9 +876,9 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
           ref={posNodeRef}
           onPointerDown={(e) => handlePointerDown("pos", e)}
           style={{
-            transform: `translate3d(${nodePositions["pos"]?.x ?? 340}px, ${nodePositions["pos"]?.y ?? 240}px, 0)`,
+            transform: `translate3d(${nodePositions["pos"]?.x ?? 340}px, ${nodePositions["pos"]?.y ?? 200}px, 0)`,
           }}
-          className={`absolute top-0 left-0 transition-shadow duration-200 z-20 w-[330px] sm:w-[370px] rounded-3xl p-5 md:p-6 bg-white/95 dark:bg-[#16171d]/90 backdrop-blur-2xl border-2 cursor-grab active:cursor-grabbing ${
+          className={`absolute top-0 left-0 will-change-transform transition-shadow duration-200 z-20 w-[320px] sm:w-[360px] rounded-3xl p-5 md:p-6 bg-white/95 dark:bg-[#16171d]/95 backdrop-blur-2xl border-2 cursor-grab active:cursor-grabbing ${
             selectedNodeKey === "pos"
               ? "border-apple-blue ring-4 ring-apple-blue/20 dark:ring-apple-blue/30 shadow-[0_0_40px_rgba(0,122,255,0.3)] scale-[1.02]"
               : "border-apple-blue/40 hover:border-apple-blue shadow-[0_12px_36px_rgba(0,0,0,0.08)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.8)] hover:shadow-[0_0_35px_rgba(0,122,255,0.25)]"
@@ -946,7 +958,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
               style={{
                 transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
               }}
-              className={`absolute top-0 left-0 transition-shadow duration-200 w-[240px] sm:w-[270px] rounded-2xl p-4 bg-white/95 dark:bg-[#14151b]/85 backdrop-blur-xl border cursor-grab active:cursor-grabbing ${
+              className={`absolute top-0 left-0 will-change-transform transition-shadow duration-200 w-[240px] sm:w-[270px] rounded-2xl p-4 bg-white/95 dark:bg-[#14151b]/95 backdrop-blur-xl border cursor-grab active:cursor-grabbing ${
                 isSelected
                   ? "border-apple-blue ring-2 ring-apple-blue/40 shadow-[0_0_25px_rgba(0,122,255,0.25)] scale-[1.02] z-30"
                   : "border-neutral-200 dark:border-neutral-800/90 hover:border-apple-blue/50 dark:hover:border-neutral-700 shadow-[0_8px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.6)] z-10"
