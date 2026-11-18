@@ -397,10 +397,9 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
   const satelliteKeysRef = useRef(satelliteKeys);
   satelliteKeysRef.current = satelliteKeys;
 
-  // Cálculo de la altura total balanceada del lienzo según la cantidad de nodos satélites
+  // Cantidad de niveles orbitales y altura total del lienzo
   const rowsCount = Math.max(1, Math.ceil(satelliteKeys.length / 2));
-  // Altura total: 85px inicial + 160px por fila + 80px de margen inferior para que nunca se corte
-  const canvasTotalHeight = Math.max(580, 85 + rowsCount * 160 + 80);
+  const canvasTotalHeight = Math.max(760, rowsCount >= 3 ? 760 : 660);
 
   // =========================================================
   // SISTEMA DE ARRASTRE LIBRE Y POSICIONAMIENTO DE NODOS
@@ -409,48 +408,60 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
   const positionsRef = useRef<Record<string, NodePosition>>({});
   const isDraggingRef = useRef<{ key: string; startX: number; startY: number; origX: number; origY: number; moved: boolean } | null>(null);
 
-  // Función para calcular posiciones predeterminadas limpias, simétricas y centradas
+  // Función para calcular posiciones de constelación orbital espacial orgánica
+  // Se colocan deliberadamente a partir de y = 150px para NUNCA invadir el header superior
   const computeDefaultPositions = useCallback((containerWidth: number) => {
     const w = containerWidth || 1050;
     const isCompact = w < 1024;
-    const posW = isCompact ? 320 : 360;
+    const posW = isCompact ? 320 : 350;
     const satW = isCompact ? 240 : 270;
 
+    // Centro del núcleo POS
     const centerX = Math.max(10, Math.round((w - posW) / 2));
-    const leftX = Math.max(16, Math.round(w * 0.035));
-    const rightX = Math.max(leftX + satW + 20, Math.round(w - satW - Math.max(16, w * 0.035)));
+    const centerY = 330;
 
-    const rows = Math.max(1, Math.ceil(satelliteKeys.length / 2));
-    const rowStep = 160;
-    const startY = 85;
-
-    // Calcular posición Y del nodo central POS para que quede perfectamente alineado y centrado
-    const totalSatSpan = (rows - 1) * rowStep + 130;
-    const posH = 215;
-    const centerY = startY + Math.max(0, Math.round((totalSatSpan - posH) / 2));
+    // Ranuras orbitales orgánicas de constelación espacial (arcos elípticos asimétricos)
+    const constellationSlots = [
+      // 0: Órbita Superior Izquierda (Nodo 03 Inventario) -> y=150, libre del texto superior
+      { x: Math.max(20, Math.round(w * 0.045)), y: 150 },
+      // 1: Órbita Superior Derecha (Nodo 04 Finanzas - asimétrico, y=170)
+      { x: Math.max(w - satW - 20, Math.round(w * 0.955 - satW)), y: 170 },
+      // 2: Órbita Media Izquierda (Nodo 01 Clientes - arqueado hacia afuera)
+      { x: Math.max(12, Math.round(w * 0.02)), y: 345 },
+      // 3: Órbita Media Derecha (Nodo 05 Gastos - arqueado hacia afuera)
+      { x: Math.max(w - satW - 12, Math.round(w * 0.98 - satW)), y: 360 },
+      // 4: Órbita Inferior Izquierda (Nodo 09 Veterinaria - arqueado hacia adentro)
+      { x: Math.max(28, Math.round(w * 0.07)), y: 535 },
+      // 5: Órbita Inferior Derecha (Nodo 10 Clínica - arqueado hacia adentro)
+      { x: Math.max(w - satW - 28, Math.round(w * 0.93 - satW)), y: 550 },
+      // 6: Órbita Inferior Central Izquierda (si hay 7mo)
+      { x: Math.max(20, Math.round(w * 0.25 - satW / 2)), y: 720 },
+      // 7: Órbita Inferior Central Derecha (si hay 8vo)
+      { x: Math.max(w - satW - 20, Math.round(w * 0.75 - satW / 2)), y: 720 },
+    ];
 
     const defaults: Record<string, NodePosition> = {
       pos: { x: centerX, y: centerY },
     };
 
     satelliteKeys.forEach((key, idx) => {
-      const row = Math.floor(idx / 2);
-      const isRight = idx % 2 === 1;
-      const x = isRight ? rightX : leftX;
-      const y = startY + row * rowStep;
-      defaults[key] = { x, y };
+      const slot = constellationSlots[idx] || {
+        x: idx % 2 === 0 ? 30 : w - satW - 30,
+        y: 150 + Math.floor(idx / 2) * 190,
+      };
+      defaults[key] = { x: slot.x, y: slot.y };
     });
 
     return defaults;
   }, [satelliteKeys]);
 
-  // Inicializar o cargar posiciones guardadas desde localStorage (v2 limpio)
+  // Inicializar o cargar posiciones guardadas desde localStorage (v3 constelación)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const container = containerRef.current;
     const width = container?.clientWidth || 1050;
 
-    const storageKey = `nucleo_spatial_coords_v2_${tenant.id}`;
+    const storageKey = `nucleo_spatial_coords_v3_${tenant.id}`;
     let saved: Record<string, NodePosition> | null = null;
     try {
       const raw = localStorage.getItem(storageKey);
@@ -480,18 +491,26 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
     setNodePositions(defaults);
     positionsRef.current = defaults;
     try {
+      localStorage.removeItem(`nucleo_spatial_coords_v3_${tenant.id}`);
       localStorage.removeItem(`nucleo_spatial_coords_v2_${tenant.id}`);
       localStorage.removeItem(`nucleo_spatial_coords_${tenant.id}`);
     } catch {}
   };
 
-  // Manejador de inicio de arrastre (PointerDown)
-  const handlePointerDown = (key: string, e: React.PointerEvent) => {
+  // Manejador de inicio de arrastre (PointerDown con PointerCapture directo)
+  const handlePointerDown = (key: string, elementRef: HTMLDivElement | null, e: React.PointerEvent) => {
     // Si hizo clic en un botón interno (como Abrir POS), no iniciar arrastre
     const target = e.target as HTMLElement;
     if (target.closest("button") || target.closest("a")) return;
 
     e.preventDefault();
+    e.stopPropagation();
+
+    const currentTarget = e.currentTarget as HTMLElement;
+    try {
+      currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+
     const current = positionsRef.current[key] || { x: 0, y: 0 };
     isDraggingRef.current = {
       key,
@@ -514,38 +533,46 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
       const container = containerRef.current;
       const containerW = container?.clientWidth || 1050;
       const isCompact = containerW < 1024;
-      const cardW = isDraggingRef.current.key === "pos" ? (isCompact ? 320 : 360) : (isCompact ? 240 : 270);
-      const cardH = isDraggingRef.current.key === "pos" ? 215 : 130;
+      const cardW = isDraggingRef.current.key === "pos" ? (isCompact ? 320 : 350) : (isCompact ? 240 : 270);
+      const cardH = isDraggingRef.current.key === "pos" ? 210 : 130;
 
-      const newX = Math.max(10, Math.min(containerW - cardW - 10, isDraggingRef.current.origX + dx));
-      const newY = Math.max(70, Math.min(canvasTotalHeight - cardH - 15, isDraggingRef.current.origY + dy));
+      const newX = Math.max(8, Math.min(containerW - cardW - 8, isDraggingRef.current.origX + dx));
+      // No permitir subir más arriba de 130px para proteger siempre el header
+      const newY = Math.max(130, Math.min(canvasTotalHeight - cardH - 15, isDraggingRef.current.origY + dy));
 
-      const updated = {
-        ...positionsRef.current,
-        [isDraggingRef.current.key]: { x: newX, y: newY },
-      };
-      positionsRef.current = updated;
-      setNodePositions(updated);
+      // Actualizar en memoria para el render del canvas a 60/120 FPS
+      positionsRef.current[isDraggingRef.current.key] = { x: newX, y: newY };
+
+      // Actualizar la tarjeta directamente en el DOM para respuesta instantánea
+      if (elementRef) {
+        elementRef.style.transform = `translate3d(${newX}px, ${newY}px, 0)`;
+      }
     };
 
-    const handlePointerUp = () => {
+    const handlePointerUp = (upEvent: PointerEvent) => {
+      try {
+        currentTarget.releasePointerCapture(upEvent.pointerId);
+      } catch {}
+
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+
       if (isDraggingRef.current) {
         if (!isDraggingRef.current.moved) {
-          // Si solo hizo clic sin arrastrar, abrir inspector
+          // Si solo hizo clic, abrir inspector
           setSelectedNodeKey(isDraggingRef.current.key);
         } else {
-          // Guardar posiciones persistentes en v2
+          // Guardar posiciones persistentes en v3
+          setNodePositions({ ...positionsRef.current });
           try {
             localStorage.setItem(
-              `nucleo_spatial_coords_v2_${tenant.id}`,
+              `nucleo_spatial_coords_v3_${tenant.id}`,
               JSON.stringify(positionsRef.current)
             );
           } catch {}
         }
       }
       isDraggingRef.current = null;
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
     };
 
     window.addEventListener("pointermove", handlePointerMove);
@@ -798,7 +825,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
         <div className="absolute bottom-1/6 left-1/3 w-72 h-72 bg-amber-500/10 rounded-full blur-[90px] pointer-events-none" />
 
         {/* Barra superior de telemetría con latencia en vivo y controles */}
-        <div className="relative z-30 flex flex-wrap items-center justify-between gap-3 px-1 mb-5">
+        <div className="relative z-30 flex flex-wrap items-center justify-between gap-3 px-2 pb-4 mb-3 border-b border-neutral-200/60 dark:border-neutral-800/60">
           <div className="flex items-center gap-2.5">
             <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-neutral-200 dark:border-neutral-800 shadow-sm text-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
@@ -874,11 +901,12 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
         {/* ========================================================= */}
         <div 
           ref={posNodeRef}
-          onPointerDown={(e) => handlePointerDown("pos", e)}
+          onPointerDown={(e) => handlePointerDown("pos", posNodeRef.current, e)}
+          onDragStart={(e) => e.preventDefault()}
           style={{
-            transform: `translate3d(${nodePositions["pos"]?.x ?? 340}px, ${nodePositions["pos"]?.y ?? 200}px, 0)`,
+            transform: `translate3d(${nodePositions["pos"]?.x ?? 340}px, ${nodePositions["pos"]?.y ?? 330}px, 0)`,
           }}
-          className={`absolute top-0 left-0 will-change-transform transition-shadow duration-200 z-20 w-[320px] sm:w-[360px] rounded-3xl p-5 md:p-6 bg-white/95 dark:bg-[#16171d]/95 backdrop-blur-2xl border-2 cursor-grab active:cursor-grabbing ${
+          className={`absolute top-0 left-0 touch-none select-none will-change-transform transition-shadow duration-200 z-20 w-[320px] sm:w-[350px] rounded-3xl p-5 md:p-6 bg-white/95 dark:bg-[#16171d]/95 backdrop-blur-2xl border-2 cursor-grab active:cursor-grabbing ${
             selectedNodeKey === "pos"
               ? "border-apple-blue ring-4 ring-apple-blue/20 dark:ring-apple-blue/30 shadow-[0_0_40px_rgba(0,122,255,0.3)] scale-[1.02]"
               : "border-apple-blue/40 hover:border-apple-blue shadow-[0_12px_36px_rgba(0,0,0,0.08)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.8)] hover:shadow-[0_0_35px_rgba(0,122,255,0.25)]"
@@ -948,17 +976,18 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
           const meta = moduleMetaRegistry[key];
           if (!meta) return null;
           const isSelected = selectedNodeKey === key;
-          const pos = nodePositions[key] || { x: 50, y: 100 + index * 260 };
+          const pos = nodePositions[key] || { x: 50, y: 150 + index * 180 };
 
           return (
             <div
               key={key}
               ref={(el) => { satNodeRefs.current[index] = el; }}
-              onPointerDown={(e) => handlePointerDown(key, e)}
+              onPointerDown={(e) => handlePointerDown(key, satNodeRefs.current[index], e)}
+              onDragStart={(e) => e.preventDefault()}
               style={{
                 transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
               }}
-              className={`absolute top-0 left-0 will-change-transform transition-shadow duration-200 w-[240px] sm:w-[270px] rounded-2xl p-4 bg-white/95 dark:bg-[#14151b]/95 backdrop-blur-xl border cursor-grab active:cursor-grabbing ${
+              className={`absolute top-0 left-0 touch-none select-none will-change-transform transition-shadow duration-200 w-[240px] sm:w-[270px] rounded-2xl p-4 bg-white/95 dark:bg-[#14151b]/95 backdrop-blur-xl border cursor-grab active:cursor-grabbing ${
                 isSelected
                   ? "border-apple-blue ring-2 ring-apple-blue/40 shadow-[0_0_25px_rgba(0,122,255,0.25)] scale-[1.02] z-30"
                   : "border-neutral-200 dark:border-neutral-800/90 hover:border-apple-blue/50 dark:hover:border-neutral-700 shadow-[0_8px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.6)] z-10"
