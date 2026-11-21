@@ -35,6 +35,7 @@ import confetti from "canvas-confetti";
 import { BusinessVertical, ModuleKey, TenantSettings } from "@/types";
 import { VERTICAL_PRESETS, AVAILABLE_MODULES } from "@/lib/constants";
 import { saveStoredTenant } from "@/lib/offlineStore";
+import { NucleoIcon } from "./NucleoIcon";
 
 interface AppleWizardProps {
   onComplete: (tenant: TenantSettings) => void;
@@ -172,9 +173,7 @@ export const AppleWizard: React.FC<AppleWizardProps> = ({ onComplete }) => {
         {/* Apple Style Header */}
         <div className="px-8 pt-7 pb-4 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800/80">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-apple-blue flex items-center justify-center text-white shadow-md font-bold text-sm tracking-wider">
-              N
-            </div>
+            <NucleoIcon size={32} showGlow={true} />
             <div>
               <h1 className="text-sm font-semibold tracking-tight">Núcleo Setup Assistant</h1>
               <p className="text-xs text-neutral-500 dark:text-neutral-400">Configuración del Propietario y Negocio</p>

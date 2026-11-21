@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { TenantSettings, ModuleKey } from "@/types";
 import { AVAILABLE_MODULES } from "@/lib/constants";
+import { NucleoIcon } from "./NucleoIcon";
 import { saveStoredTenant } from "@/lib/offlineStore";
 import { 
   connectBluetoothPrinter, 
@@ -869,9 +870,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
             <div className="p-6 rounded-3xl bg-linear-to-br from-white to-neutral-50 dark:from-[#1c1c1e] dark:to-[#161618] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-5">
               <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-neutral-200/80 dark:border-neutral-800">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-apple-blue text-white flex items-center justify-center shadow-md shadow-apple-blue/30 font-bold text-lg">
-                    N
-                  </div>
+                  <NucleoIcon size={46} showGlow={true} />
                   <div>
                     <div className="flex items-center gap-2">
                       <h2 className="text-xl font-extrabold text-neutral-900 dark:text-white tracking-tight">
