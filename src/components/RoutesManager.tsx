@@ -27,7 +27,11 @@ import {
   Eye,
   Building2,
   Sparkles,
-  Crosshair
+  Crosshair,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Move
 } from "lucide-react";
 import {
   TenantSettings,
@@ -124,7 +128,14 @@ export const RoutesManager: React.FC<RoutesManagerProps> = ({
   const [isPlacingPinMode, setIsPlacingPinMode] = useState<boolean>(false);
   const [notice, setNotice] = useState<string | null>(null);
 
+  // Estados de Zoom (Acercar / Alejar) y Desplazamiento (Pan) del Mapa para llegar a otras zonas
+  const [mapZoom, setMapZoom] = useState<number>(1); // 0.45x (alejado regional) hasta 3.0x (acercado)
+  const [mapPan, setMapPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isPanningMap, setIsPanningMap] = useState<boolean>(false);
+  const panStartRef = useRef<{ clientX: number; clientY: number; panX: number; panY: number; moved: boolean } | null>(null);
+
   const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapLayerRef = useRef<HTMLDivElement>(null);
 
   // Modal Crear Nuevo Pin al hacer clic en el mapa o botón
   const [showPinModal, setShowPinModal] = useState(false);
@@ -193,21 +204,101 @@ export const RoutesManager: React.FC<RoutesManagerProps> = ({
   );
 
   // =========================================================
+  // CONTROLES DE ZOOM, DESPLAZAMIENTO (PAN) Y SALTOS A ZONAS
+  // =========================================================
+  const handleZoomIn = () => {
+    setMapZoom((z) => Math.min(3.0, Number((z + 0.25).toFixed(2))));
+  };
+
+  const handleZoomOut = () => {
+    setMapZoom((z) => Math.max(0.45, Number((z - 0.25).toFixed(2))));
+  };
+
+  const handleResetMapView = () => {
+    setMapZoom(1);
+    setMapPan({ x: 0, y: 0 });
+  };
+
+  const handleFlyToZone = (preset: "occidente" | "norte" | "sur_leon" | "regional") => {
+    if (preset === "occidente") {
+      setMapZoom(1.1);
+      setMapPan({ x: 20, y: 10 });
+    } else if (preset === "norte") {
+      setMapZoom(1.3);
+      setMapPan({ x: 140, y: 120 });
+    } else if (preset === "sur_leon") {
+      setMapZoom(1.2);
+      setMapPan({ x: -160, y: -95 });
+    } else if (preset === "regional") {
+      setMapZoom(0.55);
+      setMapPan({ x: 0, y: 0 });
+    }
+  };
+
+  const handleMapWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.15 : -0.15;
+    setMapZoom((z) => Math.max(0.45, Math.min(3.0, Number((z + delta).toFixed(2)))));
+  };
+
+  const handleMapMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    panStartRef.current = {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      panX: mapPan.x,
+      panY: mapPan.y,
+      moved: false,
+    };
+    setIsPanningMap(true);
+  };
+
+  const handleMapMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!panStartRef.current) return;
+    const dx = e.clientX - panStartRef.current.clientX;
+    const dy = e.clientY - panStartRef.current.clientY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+      panStartRef.current.moved = true;
+    }
+    if (panStartRef.current.moved) {
+      setMapPan({
+        x: Math.max(-750, Math.min(750, panStartRef.current.panX + dx)),
+        y: Math.max(-550, Math.min(550, panStartRef.current.panY + dy)),
+      });
+    }
+  };
+
+  const handleMapMouseUp = () => {
+    setIsPanningMap(false);
+    setTimeout(() => {
+      panStartRef.current = null;
+    }, 30);
+  };
+
+  // =========================================================
   // MANEJO DE CLIC EN EL MAPA PARA COLOCAR PIN DE UBICACIÓN
   // =========================================================
   const handleMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isPlacingPinMode || !mapContainerRef.current || !currentRoute) return;
+    if (panStartRef.current?.moved) return;
+    if (!isPlacingPinMode || !mapLayerRef.current || !currentRoute) return;
 
-    const rect = mapContainerRef.current.getBoundingClientRect();
-    const clickX = ((e.clientX - rect.left) / rect.width) * 100;
-    const clickY = ((e.clientY - rect.top) / rect.height) * 100;
+    const layerRect = mapLayerRef.current.getBoundingClientRect();
+    const clickX = ((e.clientX - layerRect.left) / layerRect.width) * 100;
+    const clickY = ((e.clientY - layerRect.top) / layerRect.height) * 100;
 
-    const clampedX = Math.max(6, Math.min(94, Math.round(clickX)));
-    const clampedY = Math.max(8, Math.min(92, Math.round(clickY)));
+    // Permitir colocar pines incluso en zonas extendidas al alejar el mapa (-45% a 145%)
+    const clampedX = Math.max(-45, Math.min(145, Math.round(clickX)));
+    const clampedY = Math.max(-45, Math.min(145, Math.round(clickY)));
 
-    // Convertir porcentaje del mapa a coordenadas GPS aproximadas de Occidente (Nicaragua)
+    // Convertir porcentaje del mapa a coordenadas GPS aproximadas de Occidente / Pacífico (Nicaragua)
     const lat = Number((12.72 - (clampedY / 100) * 0.32).toFixed(4));
     const lng = Number((-87.25 + (clampedX / 100) * 0.42).toFixed(4));
+
+    let suggestedZone = "Chinandega Centro";
+    if (clampedY < 20) suggestedZone = "El Viejo / Somotillo (Norte)";
+    else if (clampedX < 25 && clampedY > 55) suggestedZone = "Puerto Corinto";
+    else if (clampedX > 85 || clampedY > 85) suggestedZone = "León / Nagarote / Managua";
+    else if (clampedX > 60) suggestedZone = "Chichigalpa / Posoltega";
 
     setPendingPinCoords({ mapX: clampedX, mapY: clampedY, lat, lng });
     setPinForm({
@@ -215,7 +306,7 @@ export const RoutesManager: React.FC<RoutesManagerProps> = ({
       contactName: "",
       contactPhone: "+505 ",
       address: "",
-      cityZone: "Chinandega",
+      cityZone: suggestedZone,
       notes: "",
     });
     setIsPlacingPinMode(false);
@@ -936,7 +1027,7 @@ export const RoutesManager: React.FC<RoutesManagerProps> = ({
           {/* Columna Derecha: Lienzo Cartográfico GPS con Pines Interactivos + Ficha del Lugar */}
           <div className="lg:col-span-8 space-y-4">
             <div className="p-4 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-3">
-              {/* Barra de herramientas del Mapa */}
+              {/* Barra de herramientas del Mapa y Saltos Rápidos a Otras Zonas */}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -945,7 +1036,43 @@ export const RoutesManager: React.FC<RoutesManagerProps> = ({
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {/* Botones de navegación rápida por Zonas */}
+                  <div className="hidden sm:flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 p-1 rounded-xl text-[10px] font-mono font-bold">
+                    <button
+                      type="button"
+                      onClick={() => handleFlyToZone("norte")}
+                      className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-300 cursor-pointer transition-colors"
+                      title="Enfocar Zona Norte (El Viejo / Somotillo)"
+                    >
+                      Norte
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleFlyToZone("occidente")}
+                      className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-300 cursor-pointer transition-colors"
+                      title="Enfocar Chinandega Centro & Corinto"
+                    >
+                      Centro
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleFlyToZone("sur_leon")}
+                      className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-300 cursor-pointer transition-colors"
+                      title="Enfocar Corredor Sur (León / Nagarote / Managua)"
+                    >
+                      Sur / León
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleFlyToZone("regional")}
+                      className="px-2 py-1 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/25 cursor-pointer transition-colors"
+                      title="Alejar mapa para ver todas las zonas regionales"
+                    >
+                      Vista Regional (0.5x)
+                    </button>
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => setIsPlacingPinMode(!isPlacingPinMode)}
@@ -965,158 +1092,256 @@ export const RoutesManager: React.FC<RoutesManagerProps> = ({
                 </div>
               </div>
 
-              {/* Lienzo de Mapa Cartográfico Vectorial con Calles, Zonas, Ruta Conectada y Pines */}
+              {/* Lienzo de Mapa Cartográfico Vectorial con Zoom (Acercar/Alejar) y Pan (Arrastrar a otras zonas) */}
               <div
                 ref={mapContainerRef}
+                onWheel={handleMapWheel}
+                onMouseDown={handleMapMouseDown}
+                onMouseMove={handleMapMouseMove}
+                onMouseUp={handleMapMouseUp}
+                onMouseLeave={handleMapMouseUp}
                 onClick={handleMapClick}
-                className={`relative w-full h-[430px] rounded-2xl overflow-hidden border select-none transition-all ${
+                className={`relative w-full h-[460px] rounded-2xl overflow-hidden border select-none transition-colors ${
                   isPlacingPinMode
                     ? "cursor-crosshair border-amber-500 ring-4 ring-amber-500/20"
-                    : "cursor-default border-neutral-200 dark:border-neutral-800"
+                    : isPanningMap
+                    ? "cursor-grabbing border-indigo-500/50"
+                    : "cursor-grab border-neutral-200 dark:border-neutral-800"
                 } bg-[#e9eef5] dark:bg-[#111622]`}
               >
-                {/* Fondo Cartográfico SVG: Cuadrícula GPS, Carreteras Panamericana/Occidente, Ríos y Zonas */}
-                <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 1000 500">
-                  <defs>
-                    <pattern id="map-grid" width="50" height="50" patternUnits="userSpaceOnUse">
-                      <path
-                        d="M 50 0 L 0 0 0 50"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="0.7"
-                        className="text-slate-300/60 dark:text-slate-800/80"
-                      />
-                    </pattern>
-                  </defs>
+                {/* Controles Flotantes de Zoom (+ / - / Reset) e Indicador de Escala */}
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className="absolute top-3 right-3 z-30 flex flex-col gap-1.5 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md p-1.5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 shadow-lg"
+                >
+                  <button
+                    type="button"
+                    onClick={handleZoomIn}
+                    className="w-8 h-8 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-indigo-600 hover:text-white text-neutral-700 dark:text-neutral-200 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Acercar Mapa (Zoom In)"
+                  >
+                    <ZoomIn className="w-4 h-4" />
+                  </button>
 
-                  <rect width="1000" height="500" fill="url(#map-grid)" />
+                  <div className="text-[10px] font-mono font-extrabold text-center py-0.5 text-indigo-600 dark:text-indigo-400">
+                    {Math.round(mapZoom * 100)}%
+                  </div>
 
-                  {/* Bloques Urbanos y Zonas Geográficas */}
-                  <rect x="60" y="50" width="220" height="140" rx="18" className="fill-emerald-500/5 dark:fill-emerald-500/5" />
-                  <rect x="350" y="160" width="280" height="190" rx="22" className="fill-indigo-500/5 dark:fill-indigo-500/10" />
-                  <rect x="670" y="210" width="260" height="220" rx="22" className="fill-amber-500/5 dark:fill-amber-500/5" />
+                  <button
+                    type="button"
+                    onClick={handleZoomOut}
+                    className="w-8 h-8 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-indigo-600 hover:text-white text-neutral-700 dark:text-neutral-200 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Alejar Mapa para ver otras zonas (Zoom Out)"
+                  >
+                    <ZoomOut className="w-4 h-4" />
+                  </button>
 
-                  {/* Costa / Puerto al Suroeste */}
-                  <path
-                    d="M 0,340 Q 140,360 220,430 L 260,500 L 0,500 Z"
-                    className="fill-sky-400/20 dark:fill-sky-500/15"
-                  />
+                  <div className="h-px bg-neutral-200 dark:bg-neutral-800 my-0.5" />
 
-                  {/* Arterias Viales / Carreteras Principales (NIC-12 / Panamericana) */}
-                  <path
-                    d="M 40,90 Q 260,120 460,240 T 940,390"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="12"
-                    className="text-white/80 dark:text-slate-800/90"
-                  />
-                  <path
-                    d="M 40,90 Q 260,120 460,240 T 940,390"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeDasharray="10 8"
-                    className="text-amber-500/50"
-                  />
+                  <button
+                    type="button"
+                    onClick={handleResetMapView}
+                    className="w-8 h-8 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-300 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Centrar y Restablecer Zoom (100%)"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
+                </div>
 
-                  {/* Carretera Secundaria Norte - Sur (El Viejo -> Chinandega -> Corinto) */}
-                  <path
-                    d="M 280,40 Q 340,210 200,380"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="9"
-                    className="text-white/75 dark:text-slate-800/85"
-                  />
-                  {/* Corredor Este (Chinandega -> Chichigalpa -> Posoltega -> León) */}
-                  <path
-                    d="M 450,240 Q 630,220 750,300 T 960,260"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="8"
-                    className="text-white/70 dark:text-slate-800/80"
-                  />
+                {/* Indicador superior izquierdo de interacción de arrastre */}
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute top-3 left-3 z-30 px-3 py-1.5 rounded-xl bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-neutral-200/80 dark:border-neutral-800 text-[10px] font-mono text-neutral-600 dark:text-neutral-300 flex items-center gap-1.5 shadow-sm pointer-events-none"
+                >
+                  <Move className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Arrastra el mapa o usa la rueda del mouse para explorar otras zonas</span>
+                </div>
 
-                  {/* Etiquetas Cartográficas de Ciudades / Sectores */}
-                  <text x="150" y="95" className="fill-slate-400 dark:fill-slate-500 text-[13px] font-mono font-bold">
-                    EL VIEJO (ZONA NORTE)
-                  </text>
-                  <text x="415" y="195" className="fill-slate-400 dark:fill-slate-500 text-[14px] font-mono font-bold">
-                    CHINANDEGA CENTRO
-                  </text>
-                  <text x="90" y="425" className="fill-sky-600/70 dark:fill-sky-400/70 text-[13px] font-mono font-bold">
-                    PUERTO CORINTO
-                  </text>
-                  <text x="690" y="255" className="fill-slate-400 dark:fill-slate-500 text-[13px] font-mono font-bold">
-                    CHICHIGALPA / POSOLTEGA
-                  </text>
-                  <text x="820" y="440" className="fill-slate-400 dark:fill-slate-500 text-[13px] font-mono font-bold">
-                    CORREDOR LEÓN
-                  </text>
-                </svg>
-
-                {/* Polilínea SVG que conecta en orden secuencial los Pines de la Ruta Activa */}
-                {currentRoute && currentRoute.pins.length > 1 && (
-                  <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                    <polyline
-                      fill="none"
-                      stroke="#6366f1"
-                      strokeWidth="3.5"
-                      strokeDasharray="8 6"
-                      points={currentRoute.pins.map((p) => `${p.mapX}%,${p.mapY}%`).join(" ")}
-                    />
-                  </svg>
-                )}
-
-                {/* Pines Interactivos sobre el Mapa */}
-                {currentRoute?.pins.map((pin) => {
-                  const isSelected = currentPin?.id === pin.id;
-                  const meta = PIN_STATUS_META[pin.status];
-
-                  return (
-                    <div
-                      key={pin.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedPinId(pin.id);
-                      }}
-                      style={{ left: `${pin.mapX}%`, top: `${pin.mapY}%` }}
-                      className="absolute -translate-x-1/2 -translate-y-1/2 z-20 group cursor-pointer"
-                    >
-                      {/* Efecto radar si está seleccionado */}
-                      {isSelected && (
-                        <span
-                          className="absolute -inset-3 rounded-full animate-ping opacity-35"
-                          style={{ backgroundColor: meta.colorHex }}
+                {/* Capa Transformable del Mapa (Soporta Zoom In/Out y Pan libre hacia zonas exteriores) */}
+                <div
+                  ref={mapLayerRef}
+                  style={{
+                    transform: `translate(${mapPan.x}px, ${mapPan.y}px) scale(${mapZoom})`,
+                    transformOrigin: "center center",
+                  }}
+                  className="absolute inset-0 w-full h-full transition-transform duration-75 ease-out"
+                >
+                  {/* Fondo Cartográfico Expandido SVG (-500 a 1500 en X, -250 a 750 en Y) para cubrir zonas alejadas */}
+                  <svg
+                    className="absolute -inset-[50%] w-[200%] h-[200%]"
+                    preserveAspectRatio="none"
+                    viewBox="-500 -250 2000 1000"
+                  >
+                    <defs>
+                      <pattern id="map-grid" width="50" height="50" patternUnits="userSpaceOnUse">
+                        <path
+                          d="M 50 0 L 0 0 0 50"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="0.7"
+                          className="text-slate-300/60 dark:text-slate-800/80"
                         />
-                      )}
+                      </pattern>
+                    </defs>
 
-                      {/* Marcador Pin con número de parada */}
-                      <div
-                        className={`relative flex items-center gap-1.5 px-2.5 py-1 rounded-full font-mono text-xs font-extrabold text-white shadow-lg transition-transform ${
-                          isSelected ? "scale-115 ring-4 ring-white dark:ring-neutral-900" : "hover:scale-105"
-                        }`}
-                        style={{ backgroundColor: meta.colorHex }}
-                      >
-                        <MapPin className="w-3.5 h-3.5 shrink-0" />
-                        <span>#{pin.sequenceOrder}</span>
-                      </div>
+                    <rect x="-500" y="-250" width="2000" height="1000" fill="url(#map-grid)" />
 
-                      {/* Etiqueta flotante con el nombre del cliente / punto */}
+                    {/* Zonas Regionales Extendidas (Visibles al alejar o arrastrar el mapa) */}
+                    {/* Zona Frontera Norte / Somotillo / Guasaule */}
+                    <rect x="280" y="-190" width="340" height="170" rx="26" className="fill-teal-500/5 dark:fill-teal-500/10" />
+                    {/* Zona Costera Noroeste / Jiquilillo / Potosí */}
+                    <rect x="-380" y="-120" width="320" height="220" rx="26" className="fill-sky-500/5 dark:fill-sky-500/10" />
+                    {/* Bloques Urbanos Centrales */}
+                    <rect x="60" y="50" width="220" height="140" rx="18" className="fill-emerald-500/5 dark:fill-emerald-500/10" />
+                    <rect x="350" y="160" width="280" height="190" rx="22" className="fill-indigo-500/5 dark:fill-indigo-500/15" />
+                    <rect x="670" y="210" width="260" height="220" rx="22" className="fill-amber-500/5 dark:fill-amber-500/10" />
+                    {/* Zona Extendida Este / Sur: Telica, Quezalguaque, La Paz Centro, Nagarote y Managua */}
+                    <rect x="980" y="150" width="420" height="280" rx="28" className="fill-purple-500/5 dark:fill-purple-500/10" />
+                    <rect x="750" y="470" width="520" height="220" rx="28" className="fill-rose-500/5 dark:fill-rose-500/10" />
+
+                    {/* Litoral Pacífico Extendido */}
+                    <path
+                      d="M -500,240 Q -180,310 0,340 Q 140,360 220,430 T 680,750 L -500,750 Z"
+                      className="fill-sky-400/20 dark:fill-sky-500/15"
+                    />
+
+                    {/* Carretera Panamericana / NIC-12 Extendida desde Frontera Norte hasta Managua */}
+                    <path
+                      d="M -380,-40 Q -120,40 40,90 Q 260,120 460,240 T 940,390 L 1450,620"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="12"
+                      className="text-white/80 dark:text-slate-800/90"
+                    />
+                    <path
+                      d="M -380,-40 Q -120,40 40,90 Q 260,120 460,240 T 940,390 L 1450,620"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeDasharray="10 8"
+                      className="text-amber-500/60"
+                    />
+
+                    {/* Carretera Norte Somotillo -> El Viejo -> Chinandega -> Corinto */}
+                    <path
+                      d="M 450,-210 Q 320,-80 280,40 Q 340,210 200,380"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="9"
+                      className="text-white/75 dark:text-slate-800/85"
+                    />
+
+                    {/* Corredor Este Extendido (Chinandega -> Chichigalpa -> Telica -> Malpaisillo -> Estelí/Norte) */}
+                    <path
+                      d="M 450,240 Q 630,220 750,300 T 960,260 L 1420,180"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="8"
+                      className="text-white/70 dark:text-slate-800/80"
+                    />
+
+                    {/* Etiquetas Cartográficas de Zonas Centrales y Zonas Extendidas */}
+                    <text x="-290" y="-20" className="fill-slate-400 dark:fill-slate-500 text-[13px] font-mono font-bold">
+                      PENÍNSULA COSIGÜINA / POTOSÍ
+                    </text>
+                    <text x="340" y="-110" className="fill-teal-600/70 dark:fill-teal-400/70 text-[14px] font-mono font-bold">
+                      SOMOTILLO / FRONTERA NORTE
+                    </text>
+                    <text x="150" y="95" className="fill-slate-400 dark:fill-slate-500 text-[13px] font-mono font-bold">
+                      EL VIEJO (ZONA NORTE)
+                    </text>
+                    <text x="415" y="195" className="fill-slate-400 dark:fill-slate-500 text-[14px] font-mono font-bold">
+                      CHINANDEGA CENTRO
+                    </text>
+                    <text x="90" y="425" className="fill-sky-600/70 dark:fill-sky-400/70 text-[13px] font-mono font-bold">
+                      PUERTO CORINTO
+                    </text>
+                    <text x="690" y="255" className="fill-slate-400 dark:fill-slate-500 text-[13px] font-mono font-bold">
+                      CHICHIGALPA / POSOLTEGA
+                    </text>
+                    <text x="820" y="440" className="fill-slate-400 dark:fill-slate-500 text-[13px] font-mono font-bold">
+                      CORREDOR LEÓN
+                    </text>
+                    <text x="1060" y="240" className="fill-purple-500/70 dark:fill-purple-400/70 text-[14px] font-mono font-bold">
+                      TELICA / MALPAISILLO (ESTE)
+                    </text>
+                    <text x="920" y="575" className="fill-rose-500/70 dark:fill-rose-400/70 text-[14px] font-mono font-bold">
+                      LA PAZ CENTRO / NAGAROTE / MANAGUA
+                    </text>
+                  </svg>
+
+                  {/* Polilínea SVG que conecta en orden secuencial los Pines de la Ruta Activa */}
+                  {currentRoute && currentRoute.pins.length > 1 && (
+                    <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
+                      <polyline
+                        fill="none"
+                        stroke="#6366f1"
+                        strokeWidth="3.5"
+                        strokeDasharray="8 6"
+                        points={currentRoute.pins.map((p) => `${p.mapX}%,${p.mapY}%`).join(" ")}
+                      />
+                    </svg>
+                  )}
+
+                  {/* Pines Interactivos sobre el Mapa (Mantienen nitidez al escalar) */}
+                  {currentRoute?.pins.map((pin) => {
+                    const isSelected = currentPin?.id === pin.id;
+                    const meta = PIN_STATUS_META[pin.status];
+
+                    return (
                       <div
-                        className={`mt-1 px-2.5 py-1 rounded-xl text-[10px] font-bold whitespace-nowrap shadow-md border transition-all ${
-                          isSelected
-                            ? "bg-neutral-900 text-white border-indigo-400"
-                            : "bg-white/95 dark:bg-neutral-900/90 text-neutral-800 dark:text-neutral-200 border-neutral-200 dark:border-neutral-700"
-                        }`}
+                        key={pin.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPinId(pin.id);
+                        }}
+                        style={{
+                          left: `${pin.mapX}%`,
+                          top: `${pin.mapY}%`,
+                          transform: `translate(-50%, -50%) scale(${1 / Math.pow(mapZoom, 0.45)})`,
+                        }}
+                        className="absolute z-20 group cursor-pointer"
                       >
-                        {pin.placeName}
+                        {/* Efecto radar si está seleccionado */}
+                        {isSelected && (
+                          <span
+                            className="absolute -inset-3 rounded-full animate-ping opacity-35"
+                            style={{ backgroundColor: meta.colorHex }}
+                          />
+                        )}
+
+                        {/* Marcador Pin con número de parada */}
+                        <div
+                          className={`relative flex items-center gap-1.5 px-2.5 py-1 rounded-full font-mono text-xs font-extrabold text-white shadow-lg transition-transform ${
+                            isSelected ? "scale-115 ring-4 ring-white dark:ring-neutral-900" : "hover:scale-105"
+                          }`}
+                          style={{ backgroundColor: meta.colorHex }}
+                        >
+                          <MapPin className="w-3.5 h-3.5 shrink-0" />
+                          <span>#{pin.sequenceOrder}</span>
+                        </div>
+
+                        {/* Etiqueta flotante con el nombre del cliente / punto */}
+                        <div
+                          className={`mt-1 px-2.5 py-1 rounded-xl text-[10px] font-bold whitespace-nowrap shadow-md border transition-all ${
+                            isSelected
+                              ? "bg-neutral-900 text-white border-indigo-400"
+                              : "bg-white/95 dark:bg-neutral-900/90 text-neutral-800 dark:text-neutral-200 border-neutral-200 dark:border-neutral-700"
+                          }`}
+                        >
+                          {pin.placeName}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
 
                 {/* Leyenda inferior del mapa */}
-                <div className="absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 rounded-2xl bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-neutral-200/80 dark:border-neutral-800 text-[10px] font-mono">
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute bottom-3 left-3 right-3 z-30 flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 rounded-2xl bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-neutral-200/80 dark:border-neutral-800 text-[10px] font-mono"
+                >
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="flex items-center gap-1 font-bold">
                       <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> Pendiente
@@ -1129,7 +1354,7 @@ export const RoutesManager: React.FC<RoutesManagerProps> = ({
                     </span>
                   </div>
                   <span className="text-neutral-500">
-                    Tip: Haz clic en cualquier Pin para ver su expediente o levantar pedido de inventario
+                    Zoom: {Math.round(mapZoom * 100)}% • Aleja o arrastra el mapa para crear pines en otras zonas
                   </span>
                 </div>
               </div>
