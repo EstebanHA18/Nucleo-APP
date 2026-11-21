@@ -33,6 +33,7 @@ interface HeaderProps {
   onOpenCommandPalette: () => void;
   onOpenSettingsWizard: () => void;
   onLogout?: () => void;
+  unreadGodModeTickets?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -48,6 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenCommandPalette,
   onOpenSettingsWizard,
   onLogout,
+  unreadGodModeTickets = 0,
 }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -151,7 +153,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => setActiveView("terminal")}
-              className={`px-2.5 py-1 rounded-full text-xs font-mono font-medium flex items-center gap-1.5 transition-all ${
+              className={`px-2.5 py-1 rounded-full text-xs font-mono font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeView === "terminal"
                   ? "bg-neutral-900 text-apple-green dark:bg-black dark:text-apple-green ring-1 ring-apple-green/50"
                   : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
@@ -160,6 +162,11 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Terminal className="w-3.5 h-3.5 text-apple-green" />
               <span className="hidden sm:inline font-bold">God Mode</span>
+              {unreadGodModeTickets > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-red-500 text-white text-[9px] font-bold animate-pulse">
+                  {unreadGodModeTickets}
+                </span>
+              )}
             </button>
           )}
 

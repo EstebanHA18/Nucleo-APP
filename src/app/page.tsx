@@ -15,8 +15,9 @@ import { DashboardBuilder } from "@/components/DashboardBuilder";
 import { CommandPalette } from "@/components/CommandPalette";
 import { VeterinaryManager } from "@/components/VeterinaryManager";
 import { ClinicalDentalManager } from "@/components/ClinicalDentalManager";
+import { HRManager } from "@/components/HRManager";
 import { LandingAndLogin } from "@/components/LandingAndLogin";
-import { TenantSettings, Product, Customer, Sale, AppUser, PetPatient, ClinicalPatient, PendingBill } from "@/types";
+import { TenantSettings, Product, Customer, Sale, AppUser, PetPatient, ClinicalPatient, PendingBill, SupportTicket, HREmployee } from "@/types";
 import { 
   getStoredTenant, 
   saveStoredTenant, 
@@ -32,7 +33,10 @@ import {
   getStoredVetPatients,
   getStoredClinicalPatients,
   saveStoredVetPatients,
-  saveStoredClinicalPatients
+  saveStoredClinicalPatients,
+  getStoredSupportTickets,
+  saveStoredSupportTickets,
+  getStoredHREmployees
 } from "@/lib/offlineStore";
 
 export default function Home() {
@@ -52,7 +56,9 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [vetPatients, setVetPatients] = useState<PetPatient[]>([]);
   const [clinicalPatients, setClinicalPatients] = useState<ClinicalPatient[]>([]);
+  const [hrEmployees, setHrEmployees] = useState<HREmployee[]>([]);
   const [pendingBill, setPendingBill] = useState<PendingBill | null>(null);
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
 
   // Initialize
   useEffect(() => {
@@ -76,6 +82,8 @@ export default function Home() {
       setSales(getStoredSales());
       setVetPatients(getStoredVetPatients());
       setClinicalPatients(getStoredClinicalPatients());
+      setHrEmployees(getStoredHREmployees());
+      setSupportTickets(getStoredSupportTickets());
 
       const loadedUsers = getStoredUsers(storedTenant);
       setUsers(loadedUsers);
@@ -274,6 +282,7 @@ export default function Home() {
           onOpenCommandPalette={() => setShowCommandPalette(true)}
           onOpenSettingsWizard={() => setShowWizard(true)}
           onLogout={handleLogout}
+          unreadGodModeTickets={supportTickets.filter((t) => t.unreadByAdmin || t.status === "open").length}
         />
 
         {/* Banner de Modo Empleado restringido si no es dueño ni superadmin */}
@@ -392,6 +401,11 @@ export default function Home() {
                 setUsers(updatedUsers);
                 saveStoredUsers(updatedUsers);
               }}
+              supportTickets={supportTickets}
+              onSaveSupportTickets={(updatedTickets) => {
+                setSupportTickets(updatedTickets);
+                saveStoredSupportTickets(updatedTickets);
+              }}
             />
           )}
 
@@ -401,6 +415,12 @@ export default function Home() {
               tenant={tenant}
               onUpdateTenant={handleUpdateTenantSettings}
               onNavigate={(v) => setActiveView(v)}
+              currentUser={currentUser}
+              supportTickets={supportTickets}
+              onSaveSupportTickets={(updatedTickets) => {
+                setSupportTickets(updatedTickets);
+                saveStoredSupportTickets(updatedTickets);
+              }}
             />
           )}
 
@@ -431,6 +451,15 @@ export default function Home() {
                   setActiveView("pos");
                 }}
                 onNavigateToPOS={() => setActiveView("pos")}
+              />
+            )}
+
+            {/* 11. Módulo de Recursos Humanos, Asistencia & Nómina */}
+            {activeView === "hr" && (
+              <HRManager
+                tenant={tenant}
+                employees={hrEmployees}
+                setEmployees={setHrEmployees}
               />
             )}
           </main>

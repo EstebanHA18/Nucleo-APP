@@ -29,9 +29,16 @@ import {
   Trash2,
   Radio,
   Smartphone,
-  RefreshCw
+  RefreshCw,
+  MessageSquare,
+  Send,
+  Plus,
+  Bug,
+  Wrench,
+  CheckCircle2,
+  X
 } from "lucide-react";
-import { TenantSettings, ModuleKey } from "@/types";
+import { TenantSettings, ModuleKey, SupportTicket, TicketRequestType, TicketPriority, AppUser } from "@/types";
 import { AVAILABLE_MODULES } from "@/lib/constants";
 import { NucleoIcon } from "./NucleoIcon";
 import { saveStoredTenant } from "@/lib/offlineStore";
@@ -49,15 +56,32 @@ interface SettingsManagerProps {
   tenant: TenantSettings;
   onUpdateTenant: (updated: TenantSettings) => void;
   onNavigate: (view: string) => void;
+  currentUser?: AppUser;
+  supportTickets?: SupportTicket[];
+  onSaveSupportTickets?: (tickets: SupportTicket[]) => void;
 }
 
 export const SettingsManager: React.FC<SettingsManagerProps> = ({
   tenant,
   onUpdateTenant,
   onNavigate,
+  currentUser,
+  supportTickets = [],
+  onSaveSupportTickets,
 }) => {
-  const [activeTab, setActiveTab] = useState<"invoice" | "subscription" | "modules" | "business">("invoice");
+  const [activeTab, setActiveTab] = useState<"invoice" | "subscription" | "modules" | "helpdesk" | "business">("invoice");
   const [isSavedNotice, setIsSavedNotice] = useState(false);
+
+  // Estados de Helpdesk & Solicitudes al Admin (God Mode)
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [reqType, setReqType] = useState<TicketRequestType>("module_request");
+  const [reqModules, setReqModules] = useState<ModuleKey[]>([]);
+  const [reqSubject, setReqSubject] = useState("");
+  const [reqDescription, setReqDescription] = useState("");
+  const [reqPriority, setReqPriority] = useState<TicketPriority>("media");
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [ticketNotice, setTicketNotice] = useState<string | null>(null);
 
   // Estados de diseño de factura
   const [ticketHeader, setTicketHeader] = useState(tenant.ticketHeader || tenant.name);
@@ -191,6 +215,129 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
     setTimeout(() => setIsSavedNotice(false), 3000);
   };
 
+  // Tickets correspondientes a este negocio
+  const tenantTickets = supportTickets.filter((t) => t.tenantId === tenant.id);
+  const unreadClientCount = tenantTickets.filter((t) => t.unreadByClient).length;
+  const activeTicket = tenantTickets.find((t) => t.id === selectedTicketId) || tenantTickets[0] || null;
+
+  // Abrir modal para contactar al administrador (con módulo preseleccionado opcional)
+  const handleOpenContactModal = (preselectedType: TicketRequestType = "module_request", preselectedMod?: ModuleKey) => {
+    setReqType(preselectedType);
+    if (preselectedMod) {
+      setReqModules([preselectedMod]);
+      const modObj = AVAILABLE_MODULES.find((m) => m.key === preselectedMod);
+      setReqSubject(`Solicitud de habilitación: ${modObj?.name || preselectedMod}`);
+      setReqDescription(`Estimado Administrador (God Mode), solicito habilitar el módulo "${modObj?.name || preselectedMod}" para nuestra cuenta (${tenant.name}).`);
+    } else if (preselectedType === "module_request") {
+      const lockedMods = AVAILABLE_MODULES.filter((m) => !tenant.activeModules.includes(m.key)).map((m) => m.key);
+      setReqModules(lockedMods.slice(0, 1));
+      setReqSubject("Solicitud de activación de nuevo módulo especializado");
+      setReqDescription("");
+    } else if (preselectedType === "bug_report") {
+      setReqModules([]);
+      setReqSubject("Reporte de problema técnico en el sistema");
+      setReqDescription("");
+    } else {
+      setReqModules([]);
+      setReqSubject("");
+      setReqDescription("");
+    }
+    setReqPriority("media");
+    setShowRequestModal(true);
+  };
+
+  // Crear nueva solicitud de Helpdesk hacia God Mode
+  const handleCreateTicket = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reqSubject.trim() || !reqDescription.trim()) {
+      alert("Por favor completa el asunto y el detalle de tu solicitud o reporte.");
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    const ticketNum = 1001 + supportTickets.length;
+    const senderName = currentUser?.fullName || tenant.owner?.fullName || "Propietario";
+
+    const newTicket: SupportTicket = {
+      id: `tkt-${Date.now().toString(36)}`,
+      ticketCode: `TKT-${ticketNum}`,
+      tenantId: tenant.id,
+      tenantName: tenant.name,
+      createdByUserId: currentUser?.id || "usr-owner",
+      createdByName: senderName,
+      type: reqType,
+      requestedModules: reqType === "module_request" ? reqModules : undefined,
+      subject: reqSubject.trim(),
+      description: reqDescription.trim(),
+      priority: reqPriority,
+      status: "open",
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      unreadByAdmin: true,
+      unreadByClient: false,
+      messages: [
+        {
+          id: `msg-${Date.now().toString(36)}`,
+          senderRole: "client",
+          senderName,
+          text: reqDescription.trim(),
+          createdAt: nowIso,
+        },
+      ],
+    };
+
+    const updatedList = [newTicket, ...supportTickets];
+    onSaveSupportTickets?.(updatedList);
+    setSelectedTicketId(newTicket.id);
+    setShowRequestModal(false);
+    setActiveTab("helpdesk");
+    setTicketNotice(`¡Solicitud ${newTicket.ticketCode} enviada al panel God Mode del Administrador!`);
+    setTimeout(() => setTicketNotice(null), 4000);
+  };
+
+  // Enviar mensaje en el chat del ticket (Cliente -> God Mode)
+  const handleSendClientMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeTicket || !replyText.trim()) return;
+
+    const nowIso = new Date().toISOString();
+    const senderName = currentUser?.fullName || tenant.owner?.fullName || "Cliente";
+
+    const newMsg = {
+      id: `msg-${Date.now().toString(36)}`,
+      senderRole: "client" as const,
+      senderName,
+      text: replyText.trim(),
+      createdAt: nowIso,
+    };
+
+    const updatedList = supportTickets.map((t) => {
+      if (t.id === activeTicket.id) {
+        return {
+          ...t,
+          updatedAt: nowIso,
+          unreadByAdmin: true,
+          unreadByClient: false,
+          status: t.status === "resolved" || t.status === "closed" ? ("open" as const) : t.status,
+          messages: [...t.messages, newMsg],
+        };
+      }
+      return t;
+    });
+
+    onSaveSupportTickets?.(updatedList);
+    setReplyText("");
+  };
+
+  // Marcar ticket como leído por el cliente al seleccionarlo
+  const handleSelectClientTicket = (ticket: SupportTicket) => {
+    setSelectedTicketId(ticket.id);
+    if (ticket.unreadByClient) {
+      const updated = supportTickets.map((t) => (t.id === ticket.id ? { ...t, unreadByClient: false } : t));
+      onSaveSupportTickets?.(updated);
+    }
+  };
+
   return (
     <div className="space-y-6">
       
@@ -267,6 +414,29 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
         >
           <Layers className="w-4 h-4" />
           <span>Paneles Asignados por Admin</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab("helpdesk");
+            if (activeTicket && activeTicket.unreadByClient) {
+              handleSelectClientTicket(activeTicket);
+            }
+          }}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-semibold transition-all whitespace-nowrap ${
+            activeTab === "helpdesk"
+              ? "bg-apple-blue text-white shadow-sm"
+              : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          }`}
+        >
+          <MessageSquare className="w-4 h-4" />
+          <span>Helpdesk & Soporte (God Mode)</span>
+          {unreadClientCount > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold animate-pulse">
+              {unreadClientCount}
+            </span>
+          )}
         </button>
 
         <button
@@ -1090,17 +1260,26 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                         {mod.description}
                       </p>
                       
-                      <div className="mt-2 text-[10px] font-mono flex items-center gap-1.5">
+                      <div className="mt-2 text-[10px] font-mono flex items-center gap-2">
                         {isAssigned ? (
                           <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
                             <Check className="w-3 h-3" />
                             Habilitado por Admin
                           </span>
                         ) : (
-                          <span className="text-neutral-400 flex items-center gap-1">
-                            <Lock className="w-3 h-3" />
-                            No incluido en tu plan actual
-                          </span>
+                          <>
+                            <span className="text-neutral-400 flex items-center gap-1">
+                              <Lock className="w-3 h-3" />
+                              No incluido en tu plan actual
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenContactModal("module_request", mod.key)}
+                              className="text-apple-blue hover:underline font-sans font-bold text-[10px] cursor-pointer"
+                            >
+                              • Solicitar panel
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -1121,17 +1300,319 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
           <div className="p-4 rounded-2xl bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2 text-neutral-600 dark:text-neutral-300">
               <HelpCircle className="w-4 h-4 text-apple-blue shrink-0" />
-              <span>¿Necesitas un módulo especializado adicional (ej. Nómina, Producción o Rutas)?</span>
+              <span>¿Necesitas un módulo especializado adicional (ej. Nómina, Producción o Rutas) o deseas reportar un problema?</span>
             </div>
-            <button
-              type="button"
-              onClick={() => alert(`Para habilitar nuevos módulos, contacta a tu Administrador asignado (${tenant.adminAssignedBy || "Admin Central"}).`)}
-              className="px-4 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100 font-bold transition-all"
-            >
-              Contactar al Administrador
-            </button>
+            <div className="flex items-center gap-2">
+              {tenantTickets.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("helpdesk")}
+                  className="px-3.5 py-1.5 rounded-xl bg-apple-blue/15 text-apple-blue hover:bg-apple-blue/25 font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>Ver Mis Solicitudes ({tenantTickets.length})</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => handleOpenContactModal("module_request")}
+                className="px-4 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100 font-bold transition-all cursor-pointer"
+              >
+                Contactar al Administrador
+              </button>
+            </div>
           </div>
 
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* PESTAÑA HELPDESK: COMUNICACIÓN CLIENTE <-> GOD MODE      */}
+      {/* ======================================================== */}
+      {activeTab === "helpdesk" && (
+        <div className="space-y-4 animate-fadeIn">
+          {/* Banner Informativo Helpdesk */}
+          <div className="p-5 rounded-3xl bg-neutral-900 text-white border border-neutral-800 shadow-xl flex flex-wrap items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider font-mono">
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>Helpdesk Directo // Conexión con SuperAdmin (God Mode)</span>
+              </div>
+              <h3 className="text-base font-bold">
+                Centro de Solicitudes, Módulos y Soporte Técnico
+              </h3>
+              <p className="text-xs text-neutral-400 max-w-2xl">
+                Envía solicitudes para habilitar nuevos paneles, reporta inconvenientes del sistema o comunícate en tiempo real con el Administrador General (God Mode).
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenContactModal("module_request")}
+                className="px-4 py-2 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-bold shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Solicitar Panel / Módulo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenContactModal("bug_report")}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Bug className="w-3.5 h-3.5 text-amber-400" />
+                <span>Reportar un Problema</span>
+              </button>
+            </div>
+          </div>
+
+          {ticketNotice && (
+            <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-2 animate-fadeIn">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{ticketNotice}</span>
+            </div>
+          )}
+
+          {tenantTickets.length === 0 ? (
+            <div className="p-10 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 text-center space-y-3">
+              <MessageSquare className="w-10 h-10 text-neutral-300 dark:text-neutral-600 mx-auto stroke-1" />
+              <h4 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">
+                No tienes solicitudes ni tickets registrados aún
+              </h4>
+              <p className="text-xs text-neutral-500 max-w-md mx-auto">
+                Cuando necesites habilitar un panel adicional (como RRHH & Nómina o Producción) o reportar un problema técnico al Administrador God Mode, crea un ticket aquí.
+              </p>
+              <button
+                type="button"
+                onClick={() => handleOpenContactModal("module_request")}
+                className="px-4 py-2 rounded-xl bg-apple-blue text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Crear Primera Solicitud</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              {/* Lista de Tickets del Cliente */}
+              <div className="lg:col-span-5 space-y-2.5">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-bold text-neutral-500 uppercase font-mono">
+                    Mis Solicitudes ({tenantTickets.length})
+                  </span>
+                </div>
+
+                {tenantTickets.map((tkt) => {
+                  const isSelected = activeTicket?.id === tkt.id;
+                  return (
+                    <div
+                      key={tkt.id}
+                      onClick={() => handleSelectClientTicket(tkt)}
+                      className={`p-4 rounded-2xl border cursor-pointer transition-all space-y-2 ${
+                        isSelected
+                          ? "bg-white dark:bg-[#1c1c1e] border-apple-blue ring-2 ring-apple-blue/20 shadow-md"
+                          : "bg-white/80 dark:bg-[#1c1c1e]/70 border-neutral-200/80 dark:border-neutral-800 hover:border-neutral-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-[11px] text-apple-blue">
+                            {tkt.ticketCode}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                            tkt.type === "module_request"
+                              ? "bg-purple-500/15 text-purple-600 dark:text-purple-400"
+                              : tkt.type === "bug_report"
+                              ? "bg-red-500/15 text-red-600 dark:text-red-400"
+                              : "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+                          }`}>
+                            {tkt.type === "module_request"
+                              ? "Solicitud de Panel"
+                              : tkt.type === "bug_report"
+                              ? "Reporte Problema"
+                              : tkt.type === "billing_query"
+                              ? "Facturación / Plan"
+                              : "Soporte General"}
+                          </span>
+                          {tkt.unreadByClient && (
+                            <span className="px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold">
+                              NUEVA RESPUESTA
+                            </span>
+                          )}
+                        </div>
+
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase ${
+                          tkt.status === "open"
+                            ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                            : tkt.status === "in_progress"
+                            ? "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+                            : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                        }`}>
+                          {tkt.status === "open"
+                            ? "Abierto"
+                            : tkt.status === "in_progress"
+                            ? "En Revisión"
+                            : tkt.status === "resolved"
+                            ? "Resuelto"
+                            : "Cerrado"}
+                        </span>
+                      </div>
+
+                      <h4 className="text-xs font-bold text-neutral-900 dark:text-white line-clamp-1">
+                        {tkt.subject}
+                      </h4>
+
+                      {tkt.requestedModules && tkt.requestedModules.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {tkt.requestedModules.map((mKey) => {
+                            const mInfo = AVAILABLE_MODULES.find((m) => m.key === mKey);
+                            const alreadyActive = tenant.activeModules.includes(mKey);
+                            return (
+                              <span
+                                key={mKey}
+                                className={`px-2 py-0.5 rounded-md text-[10px] font-semibold flex items-center gap-1 ${
+                                  alreadyActive
+                                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
+                                }`}
+                              >
+                                <Layers className="w-2.5 h-2.5" />
+                                {mInfo?.name || mKey} {alreadyActive && "✓ (Habilitado)"}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between text-[10px] text-neutral-400 font-mono pt-1">
+                        <span>{new Date(tkt.createdAt).toLocaleString("es-NI")}</span>
+                        <span>{tkt.messages.length} msg(s)</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Detalle y Chat en Vivo con God Mode */}
+              <div className="lg:col-span-7">
+                {activeTicket ? (
+                  <div className="rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple overflow-hidden flex flex-col h-[520px]">
+                    {/* Cabecera del Ticket */}
+                    <div className="p-4 border-b border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-xs text-apple-blue">
+                            {activeTicket.ticketCode}
+                          </span>
+                          <h4 className="font-bold text-sm text-neutral-900 dark:text-white">
+                            {activeTicket.subject}
+                          </h4>
+                        </div>
+                        <p className="text-[11px] text-neutral-500">
+                          Canal directo con <strong>SuperAdmin // God Mode</strong> • Prioridad:{" "}
+                          <span className="uppercase font-mono font-bold">{activeTicket.priority}</span>
+                        </p>
+                      </div>
+
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase ${
+                        activeTicket.status === "open"
+                          ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                          : activeTicket.status === "in_progress"
+                          ? "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+                          : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                      }`}>
+                        {activeTicket.status === "open"
+                          ? "● Pendiente de Admin"
+                          : activeTicket.status === "in_progress"
+                          ? "● En Proceso por Admin"
+                          : "✓ Resuelto por Admin"}
+                      </span>
+                    </div>
+
+                    {/* Módulos solicitados si aplica */}
+                    {activeTicket.requestedModules && activeTicket.requestedModules.length > 0 && (
+                      <div className="px-4 py-2.5 bg-apple-blue/5 dark:bg-apple-blue/10 border-b border-neutral-200/60 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <span className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">
+                          Paneles solicitados al Administrador:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {activeTicket.requestedModules.map((mKey) => {
+                            const mInfo = AVAILABLE_MODULES.find((m) => m.key === mKey);
+                            const isNowEnabled = tenant.activeModules.includes(mKey);
+                            return (
+                              <span
+                                key={mKey}
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 ${
+                                  isNowEnabled
+                                    ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                                    : "bg-apple-blue/15 text-apple-blue border border-apple-blue/30"
+                                }`}
+                              >
+                                {mInfo?.name || mKey} — {isNowEnabled ? "HABILITADO ✓" : "EN ESPERA"}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Hilo de Mensajes */}
+                    <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-neutral-50/30 dark:bg-[#141417]">
+                      {activeTicket.messages.map((msg) => {
+                        const isMe = msg.senderRole === "client";
+                        return (
+                          <div
+                            key={msg.id}
+                            className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
+                          >
+                            <div className="flex items-center gap-1.5 mb-1 px-1">
+                              <span className={`text-[10px] font-bold ${
+                                isMe ? "text-apple-blue" : "text-emerald-500 font-mono"
+                              }`}>
+                                {isMe ? `${msg.senderName} (Cliente)` : `⚡ ${msg.senderName} (God Mode)`}
+                              </span>
+                              <span className="text-[9px] text-neutral-400 font-mono">
+                                {new Date(msg.createdAt).toLocaleTimeString("es-NI", { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            </div>
+                            <div
+                              className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed shadow-xs ${
+                                isMe
+                                  ? "bg-apple-blue text-white rounded-br-xs"
+                                  : "bg-neutral-900 text-neutral-100 border border-emerald-500/30 rounded-bl-xs"
+                              }`}
+                            >
+                              {msg.text}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Caja de Respuesta del Cliente */}
+                    <form
+                      onSubmit={handleSendClientMessage}
+                      className="p-3 border-t border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#1c1c1e] flex items-center gap-2"
+                    >
+                      <input
+                        type="text"
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        placeholder="Escribe un mensaje o aclaración para el Administrador God Mode..."
+                        className="flex-1 px-3.5 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs focus:outline-none focus:ring-2 focus:ring-apple-blue"
+                      />
+                      <button
+                        type="submit"
+                        className="px-4 py-2 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Enviar</span>
+                      </button>
+                    </form>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1192,6 +1673,176 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                 <span>Guardar Parámetros</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: CONTACTAR AL ADMINISTRADOR (SOLICITUD A GOD MODE) */}
+      {/* ======================================================== */}
+      {showRequestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-xs p-4 animate-fadeIn overflow-y-auto">
+          <div className="w-full max-w-xl bg-white dark:bg-[#18191f] text-neutral-900 dark:text-neutral-100 rounded-3xl p-6 shadow-2xl border border-neutral-200 dark:border-neutral-800 space-y-4 my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-200 dark:border-neutral-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-apple-blue/15 text-apple-blue flex items-center justify-center">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm">
+                    Contactar al Administrador // Helpdesk God Mode
+                  </h3>
+                  <p className="text-[11px] text-neutral-400">
+                    Tu solicitud caerá directamente en la bandeja del SuperAdmin para atención inmediata.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRequestModal(false)}
+                className="w-7 h-7 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTicket} className="space-y-4 text-xs">
+              {/* Tipo de Solicitud */}
+              <div>
+                <label className="block text-[11px] font-semibold mb-1.5">
+                  ¿Qué deseas solicitar o reportar al Administrador?
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { id: "module_request", label: "Solicitar Panel", icon: Layers },
+                    { id: "bug_report", label: "Reportar Problema", icon: Bug },
+                    { id: "billing_query", label: "Plan & Facturación", icon: CreditCard },
+                    { id: "system_support", label: "Soporte del Sistema", icon: Wrench },
+                  ].map((item) => {
+                    const IconComp = item.icon;
+                    const isSelected = reqType === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setReqType(item.id as TicketRequestType)}
+                        className={`p-2.5 rounded-2xl border text-left transition-all flex flex-col gap-1.5 cursor-pointer ${
+                          isSelected
+                            ? "bg-apple-blue text-white border-apple-blue shadow-sm"
+                            : "bg-neutral-50 dark:bg-neutral-800/70 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700"
+                        }`}
+                      >
+                        <IconComp className="w-4 h-4" />
+                        <span className="font-bold text-[11px] leading-tight">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Selección de Paneles si es solicitud de módulo */}
+              {reqType === "module_request" && (
+                <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700 space-y-2">
+                  <label className="block text-[11px] font-bold text-apple-blue">
+                    Selecciona el panel o módulo que deseas habilitar:
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {AVAILABLE_MODULES.map((mod) => {
+                      const alreadyActive = tenant.activeModules.includes(mod.key);
+                      const isChecked = reqModules.includes(mod.key);
+                      return (
+                        <button
+                          key={mod.key}
+                          type="button"
+                          onClick={() => {
+                            if (isChecked) {
+                              setReqModules(reqModules.filter((k) => k !== mod.key));
+                            } else {
+                              setReqModules([...reqModules, mod.key]);
+                            }
+                          }}
+                          className={`p-2 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                            isChecked
+                              ? "bg-apple-blue/15 border-apple-blue text-apple-blue font-bold"
+                              : "bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300"
+                          }`}
+                        >
+                          <span className="truncate text-[11px]">{mod.name}</span>
+                          <span className="text-[9px] font-mono ml-1 shrink-0">
+                            {alreadyActive ? "(Ya activo)" : isChecked ? "✓" : "+"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Asunto y Prioridad */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-semibold mb-1">
+                    Asunto de la Solicitud:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={reqSubject}
+                    onChange={(e) => setReqSubject(e.target.value)}
+                    placeholder="Ej. Habilitar módulo de Nómina / Error en impresora..."
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-apple-blue"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold mb-1">
+                    Nivel de Prioridad:
+                  </label>
+                  <select
+                    value={reqPriority}
+                    onChange={(e) => setReqPriority(e.target.value as TicketPriority)}
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-apple-blue"
+                  >
+                    <option value="baja">Baja</option>
+                    <option value="media">Media (Normal)</option>
+                    <option value="alta">Alta</option>
+                    <option value="urgente">Urgente</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Descripción Detallada */}
+              <div>
+                <label className="block text-[11px] font-semibold mb-1">
+                  Detalle de lo que solicitas o del problema a reportar:
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={reqDescription}
+                  onChange={(e) => setReqDescription(e.target.value)}
+                  placeholder="Describe aquí los detalles para que el Administrador God Mode pueda ayudarte o activar tu panel..."
+                  className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs focus:outline-none focus:ring-2 focus:ring-apple-blue leading-relaxed"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white font-bold text-xs shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Enviar Solicitud a God Mode</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowRequestModal(false)}
+                  className="px-4 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-semibold text-xs cursor-pointer"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

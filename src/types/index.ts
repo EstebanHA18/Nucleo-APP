@@ -408,3 +408,121 @@ export interface ClinicalPatient {
   odontogram: OdontogramTooth[];
   consultations: ClinicalConsultation[];
 }
+
+// ==========================================
+// MODELOS PARA MÓDULO DE RECURSOS HUMANOS & NÓMINA
+// ==========================================
+
+export type EmployeeDepartment = 
+  | 'ventas_caja'
+  | 'bodega_logistica'
+  | 'administracion'
+  | 'clinica_atencion'
+  | 'operaciones';
+
+export type ContractType = 'indefinido' | 'determinado' | 'servicios_profesionales' | 'pasantia';
+export type PaymentFrequency = 'quincenal' | 'mensual' | 'semanal';
+export type EmployeeStatus = 'activo' | 'vacaciones' | 'subsidio' | 'inactivo';
+
+export interface AttendanceRecord {
+  id: string;
+  date: string; // "YYYY-MM-DD"
+  checkIn: string; // "08:00"
+  checkOut?: string; // "17:00"
+  status: 'presente' | 'tardanza' | 'permiso' | 'ausente';
+  overtimeHours: number;
+  notes?: string;
+}
+
+export interface HRAdvanceOrLeave {
+  id: string;
+  type: 'adelanto_salarial' | 'vacaciones' | 'permiso_medico' | 'bono_comision';
+  date: string;
+  amount?: number; // En C$ para adelantos o bonos
+  days?: number;   // Para vacaciones o permisos
+  reason: string;
+  status: 'aprobado' | 'pendiente' | 'aplicado';
+}
+
+export interface PayrollRecord {
+  id: string;
+  periodLabel: string; // Ej: "1ra Quincena Noviembre 2026"
+  paymentDate: string;
+  baseSalaryPeriod: number;
+  overtimeHours: number;
+  overtimePay: number;
+  bonuses: number;
+  inssDeduction: number;      // 7% INSS Laboral
+  irDeduction: number;        // Retención IR si aplica
+  advancesDeduction: number;  // Adelantos de sueldo descontados
+  netPay: number;
+  paymentMethod: 'efectivo' | 'transferencia' | 'cheque';
+  status: 'pagado' | 'pendiente';
+}
+
+export interface HREmployee {
+  id: string;
+  code: string; // Ej: "EMP-001"
+  fullName: string;
+  dni: string; // Cédula de identidad
+  inssNumber?: string;
+  position: string;
+  department: EmployeeDepartment;
+  contractType: ContractType;
+  paymentFrequency: PaymentFrequency;
+  hireDate: string; // "YYYY-MM-DD"
+  baseMonthlySalary: number; // En moneda local (C$)
+  phone: string;
+  email?: string;
+  address?: string;
+  emergencyContact: string;
+  bankAccount?: string;
+  bankName?: string;
+  vacationDaysAvailable: number;
+  status: EmployeeStatus;
+  attendance: AttendanceRecord[];
+  movements: HRAdvanceOrLeave[];
+  payrollHistory: PayrollRecord[];
+}
+
+// ==========================================
+// MODELOS PARA HELPDESK & COMUNICACIÓN (CLIENTE <-> GOD MODE)
+// ==========================================
+
+export type TicketRequestType = 
+  | 'module_request'
+  | 'bug_report'
+  | 'billing_query'
+  | 'system_support';
+
+export type TicketPriority = 'baja' | 'media' | 'alta' | 'urgente';
+
+export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+
+export interface TicketMessage {
+  id: string;
+  senderRole: 'client' | 'superadmin';
+  senderName: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  ticketCode: string; // Ej: "TKT-1042"
+  tenantId: string;
+  tenantName: string;
+  createdByUserId: string;
+  createdByName: string;
+  type: TicketRequestType;
+  requestedModules?: ModuleKey[];
+  subject: string;
+  description: string;
+  priority: TicketPriority;
+  status: TicketStatus;
+  createdAt: string;
+  updatedAt: string;
+  messages: TicketMessage[];
+  unreadByAdmin?: boolean;
+  unreadByClient?: boolean;
+}

@@ -23,9 +23,15 @@ import {
   X,
   Lock,
   Eye,
-  EyeOff
+  EyeOff,
+  MessageSquare,
+  Send,
+  Layers,
+  Bug,
+  CheckCircle2,
+  AlertCircle
 } from "lucide-react";
-import { TenantSettings, ModuleKey, AppUser, BusinessVertical } from "@/types";
+import { TenantSettings, ModuleKey, AppUser, BusinessVertical, SupportTicket, TicketStatus } from "@/types";
 import { AVAILABLE_MODULES, VERTICAL_PRESETS } from "@/lib/constants";
 import { calculateTenantBilling, getCentralAmericaNow, formatCentralAmericaDate } from "@/lib/centralAmericaBilling";
 
@@ -37,6 +43,8 @@ interface SuperAdminTerminalProps {
   onSwitchTenant: (tenant: TenantSettings) => void;
   allUsers: AppUser[];
   onSaveAllUsers: (users: AppUser[]) => void;
+  supportTickets?: SupportTicket[];
+  onSaveSupportTickets?: (tickets: SupportTicket[]) => void;
   onReturnToDashboard?: () => void;
 }
 
@@ -48,9 +56,15 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
   onSwitchTenant,
   allUsers,
   onSaveAllUsers,
+  supportTickets = [],
+  onSaveSupportTickets,
   onReturnToDashboard,
 }) => {
-  const [activeTab, setActiveTab] = useState<"tenants" | "passwords" | "cli">("tenants");
+  const [activeTab, setActiveTab] = useState<"tenants" | "helpdesk" | "passwords" | "cli">("tenants");
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [adminReplyText, setAdminReplyText] = useState("");
+  const [filterTicketStatus, setFilterTicketStatus] = useState<"all" | TicketStatus>("all");
+  const [adminActionNotice, setAdminActionNotice] = useState<string | null>(null);
   const [commandInput, setCommandInput] = useState("");
   const [commandHistory, setCommandHistory] = useState<string[]>([
     "Núcleo Master System OS [Version 3.5.0-LTS]",
@@ -340,6 +354,118 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
     }, 1500);
   };
 
+  // ==========================================
+  // LÓGICA DE HELPDESK & SOLICITUDES (GOD MODE)
+  // ==========================================
+
+  const unreadAdminCount = supportTickets.filter((t) => t.unreadByAdmin || t.status === "open").length;
+  const filteredTickets = supportTickets.filter((t) =>
+    filterTicketStatus === "all" ? true : t.status === filterTicketStatus
+  );
+  const activeAdminTicket =
+    filteredTickets.find((t) => t.id === selectedTicketId) ||
+    supportTickets.find((t) => t.id === selectedTicketId) ||
+    filteredTickets[0] ||
+    null;
+
+  const handleSelectAdminTicket = (ticket: SupportTicket) => {
+    setSelectedTicketId(ticket.id);
+    if (ticket.unreadByAdmin) {
+      const updated = supportTickets.map((t) => (t.id === ticket.id ? { ...t, unreadByAdmin: false } : t));
+      onSaveSupportTickets?.(updated);
+    }
+  };
+
+  const handleSendAdminReply = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeAdminTicket || !adminReplyText.trim()) return;
+
+    const nowIso = new Date().toISOString();
+    const newMsg = {
+      id: `msg-${Date.now().toString(36)}`,
+      senderRole: "superadmin" as const,
+      senderName: "SuperAdmin // God Mode",
+      text: adminReplyText.trim(),
+      createdAt: nowIso,
+    };
+
+    const updated = supportTickets.map((t) => {
+      if (t.id === activeAdminTicket.id) {
+        return {
+          ...t,
+          status: t.status === "open" ? ("in_progress" as const) : t.status,
+          updatedAt: nowIso,
+          unreadByAdmin: false,
+          unreadByClient: true,
+          messages: [...t.messages, newMsg],
+        };
+      }
+      return t;
+    });
+
+    onSaveSupportTickets?.(updated);
+    setAdminReplyText("");
+  };
+
+  const handleChangeTicketStatus = (ticketId: string, newStatus: TicketStatus) => {
+    const nowIso = new Date().toISOString();
+    const updated = supportTickets.map((t) => {
+      if (t.id === ticketId) {
+        return {
+          ...t,
+          status: newStatus,
+          updatedAt: nowIso,
+          unreadByAdmin: false,
+          unreadByClient: true,
+        };
+      }
+      return t;
+    });
+    onSaveSupportTickets?.(updated);
+    setAdminActionNotice(`Estado de solicitud actualizado a "${newStatus.toUpperCase()}".`);
+    setTimeout(() => setAdminActionNotice(null), 3000);
+  };
+
+  // Habilitar módulo solicitado directamente desde el ticket en 1 clic y avisar al cliente
+  const handleApproveAndEnableModule = (ticket: SupportTicket, modKey: ModuleKey) => {
+    const targetTenant = allTenants.find((t) => t.id === ticket.tenantId);
+    if (!targetTenant) return;
+
+    const modInfo = AVAILABLE_MODULES.find((m) => m.key === modKey);
+    const isAlreadyEnabled = targetTenant.activeModules.includes(modKey);
+
+    if (!isAlreadyEnabled) {
+      handleToggleModuleForTenant(targetTenant.id, modKey);
+    }
+
+    const nowIso = new Date().toISOString();
+    const autoMsg = {
+      id: `msg-${Date.now().toString(36)}`,
+      senderRole: "superadmin" as const,
+      senderName: "SuperAdmin // God Mode",
+      text: `✅ Solicitud aprobada: El panel "${modInfo?.name || modKey}" ha sido habilitado en el perfil de ${targetTenant.name}. Ya puedes acceder a él desde tu menú principal.`,
+      createdAt: nowIso,
+    };
+
+    const updatedTickets = supportTickets.map((t) => {
+      if (t.id === ticket.id) {
+        return {
+          ...t,
+          status: "resolved" as const,
+          updatedAt: nowIso,
+          unreadByAdmin: false,
+          unreadByClient: true,
+          messages: [...t.messages, autoMsg],
+        };
+      }
+      return t;
+    });
+
+    onSaveSupportTickets?.(updatedTickets);
+    setAdminActionNotice(`¡Módulo "${modInfo?.name || modKey}" habilitado para ${targetTenant.name} y cliente notificado!`);
+    setTimeout(() => setAdminActionNotice(null), 4000);
+  };
+
   const totalMRR = allTenants.reduce((acc, t) => acc + (t.monthlyPlanPrice || 0), 0);
 
   return (
@@ -384,12 +510,12 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
       </div>
 
       {/* Selector de Pestañas SuperAdmin */}
-      <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-2">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setActiveTab("tenants")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === "tenants"
                 ? "bg-apple-blue text-white shadow-sm"
                 : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
@@ -401,8 +527,31 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
 
           <button
             type="button"
+            onClick={() => {
+              setActiveTab("helpdesk");
+              if (activeAdminTicket && activeAdminTicket.unreadByAdmin) {
+                handleSelectAdminTicket(activeAdminTicket);
+              }
+            }}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "helpdesk"
+                ? "bg-apple-blue text-white shadow-sm"
+                : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>Helpdesk & Solicitudes de Clientes</span>
+            {unreadAdminCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-mono font-bold animate-pulse">
+                {unreadAdminCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab("passwords")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === "passwords"
                 ? "bg-apple-blue text-white shadow-sm"
                 : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
@@ -415,7 +564,7 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab("cli")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === "cli"
                 ? "bg-apple-blue text-white shadow-sm"
                 : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
@@ -429,7 +578,7 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
         <button
           type="button"
           onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 rounded-xl bg-apple-green hover:bg-emerald-600 text-black font-bold text-xs shadow-md flex items-center gap-1.5 transition-all"
+          className="px-4 py-2 rounded-xl bg-apple-green hover:bg-emerald-600 text-black font-bold text-xs shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
           <span>Crear Nuevo Perfil de Negocio</span>
@@ -565,6 +714,310 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
             })}
           </div>
 
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* PESTAÑA HELPDESK: BANDEJA DE SOLICITUDES & CHAT GOD MODE */}
+      {/* ======================================================== */}
+      {activeTab === "helpdesk" && (
+        <div className="space-y-4 animate-fadeIn">
+          {/* Header & Filtros del Helpdesk Central */}
+          <div className="p-5 rounded-3xl bg-white dark:bg-[#18191f] border border-neutral-200/80 dark:border-neutral-800 shadow-apple flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-apple-green" />
+                <h3 className="text-sm font-extrabold text-neutral-900 dark:text-white">
+                  Centro de Comando Helpdesk // Solicitudes y Reportes de Clientes
+                </h3>
+              </div>
+              <p className="text-xs text-neutral-400 mt-0.5">
+                Recibe solicitudes de activación de módulos, reportes de fallos y comunícate en tiempo real con los propietarios de cada negocio.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              {[
+                { id: "all", label: `Todos (${supportTickets.length})` },
+                { id: "open", label: `Pendientes (${supportTickets.filter((t) => t.status === "open").length})` },
+                { id: "in_progress", label: `En Revisión (${supportTickets.filter((t) => t.status === "in_progress").length})` },
+                { id: "resolved", label: `Resueltos (${supportTickets.filter((t) => t.status === "resolved").length})` },
+              ].map((flt) => (
+                <button
+                  key={flt.id}
+                  type="button"
+                  onClick={() => setFilterTicketStatus(flt.id as any)}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                    filterTicketStatus === flt.id
+                      ? "bg-apple-blue text-white shadow-xs"
+                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200"
+                  }`}
+                >
+                  {flt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {adminActionNotice && (
+            <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-2 animate-fadeIn">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{adminActionNotice}</span>
+            </div>
+          )}
+
+          {filteredTickets.length === 0 ? (
+            <div className="p-12 rounded-3xl bg-white dark:bg-[#18191f] border border-neutral-200/80 dark:border-neutral-800 text-center space-y-2">
+              <MessageSquare className="w-10 h-10 text-neutral-300 dark:text-neutral-700 mx-auto stroke-1" />
+              <h4 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">
+                No hay solicitudes en esta categoría
+              </h4>
+              <p className="text-xs text-neutral-400">
+                Las solicitudes creadas por los clientes desde &quot;Contactar al Administrador&quot; aparecerán aquí al instante.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              {/* Columna Izquierda: Bandeja de Tickets */}
+              <div className="lg:col-span-5 space-y-2.5 max-h-[600px] overflow-y-auto pr-1">
+                {filteredTickets.map((tkt) => {
+                  const isSelected = activeAdminTicket?.id === tkt.id;
+                  return (
+                    <div
+                      key={tkt.id}
+                      onClick={() => handleSelectAdminTicket(tkt)}
+                      className={`p-4 rounded-2xl border cursor-pointer transition-all space-y-2 ${
+                        isSelected
+                          ? "bg-white dark:bg-[#18191f] border-apple-blue ring-2 ring-apple-blue/20 shadow-md"
+                          : "bg-white/80 dark:bg-[#18191f]/70 border-neutral-200/80 dark:border-neutral-800 hover:border-neutral-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono font-bold text-[11px] text-apple-blue">
+                            {tkt.ticketCode}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                            tkt.type === "module_request"
+                              ? "bg-purple-500/15 text-purple-600 dark:text-purple-400"
+                              : tkt.type === "bug_report"
+                              ? "bg-red-500/15 text-red-600 dark:text-red-400"
+                              : "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+                          }`}>
+                            {tkt.type === "module_request"
+                              ? "Solicitud de Panel"
+                              : tkt.type === "bug_report"
+                              ? "Problema / Bug"
+                              : tkt.type === "billing_query"
+                              ? "Facturación"
+                              : "Soporte"}
+                          </span>
+                          {tkt.unreadByAdmin && (
+                            <span className="px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold animate-pulse">
+                              NUEVO
+                            </span>
+                          )}
+                        </div>
+
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase ${
+                          tkt.status === "open"
+                            ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                            : tkt.status === "in_progress"
+                            ? "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+                            : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                        }`}>
+                          {tkt.status === "open"
+                            ? "Abierto"
+                            : tkt.status === "in_progress"
+                            ? "En Proceso"
+                            : "Resuelto"}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] font-mono font-bold text-apple-green block">
+                          🏢 {tkt.tenantName} • ({tkt.createdByName})
+                        </span>
+                        <h4 className="text-xs font-extrabold text-neutral-900 dark:text-white mt-0.5 line-clamp-1">
+                          {tkt.subject}
+                        </h4>
+                      </div>
+
+                      {tkt.requestedModules && tkt.requestedModules.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {tkt.requestedModules.map((mKey) => {
+                            const mInfo = AVAILABLE_MODULES.find((m) => m.key === mKey);
+                            return (
+                              <span
+                                key={mKey}
+                                className="px-2 py-0.5 rounded-md bg-apple-blue/10 text-apple-blue text-[10px] font-bold flex items-center gap-1"
+                              >
+                                <Layers className="w-2.5 h-2.5" />
+                                {mInfo?.name || mKey}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between text-[10px] text-neutral-400 font-mono pt-1 border-t border-neutral-100 dark:border-neutral-800/60">
+                        <span>Prioridad: <strong className="uppercase">{tkt.priority}</strong></span>
+                        <span>{new Date(tkt.updatedAt).toLocaleString("es-NI")}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Columna Derecha: Panel de Acción God Mode & Chat */}
+              <div className="lg:col-span-7">
+                {activeAdminTicket ? (() => {
+                  const ticketTenant = allTenants.find((t) => t.id === activeAdminTicket.tenantId);
+
+                  return (
+                    <div className="rounded-3xl bg-white dark:bg-[#18191f] border border-neutral-200/80 dark:border-neutral-800 shadow-apple overflow-hidden flex flex-col h-[580px]">
+                      {/* Cabecera de Control del Ticket */}
+                      <div className="p-4 border-b border-neutral-200/80 dark:border-neutral-800 bg-neutral-900 text-white space-y-3">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 rounded-md bg-apple-green/20 text-apple-green font-mono font-bold text-xs">
+                                {activeAdminTicket.ticketCode}
+                              </span>
+                              <span className="text-xs font-mono text-neutral-300 font-bold">
+                                {activeAdminTicket.tenantName}
+                              </span>
+                              <span className="text-[10px] text-neutral-400">
+                                (Solicitado por: {activeAdminTicket.createdByName})
+                              </span>
+                            </div>
+                            <h4 className="font-extrabold text-sm text-white mt-1">
+                              {activeAdminTicket.subject}
+                            </h4>
+                          </div>
+
+                          {/* Cambiar Estado del Ticket */}
+                          <div className="flex items-center gap-1">
+                            {(["open", "in_progress", "resolved"] as TicketStatus[]).map((st) => (
+                              <button
+                                key={st}
+                                type="button"
+                                onClick={() => handleChangeTicketStatus(activeAdminTicket.id, st)}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold uppercase transition-all cursor-pointer ${
+                                  activeAdminTicket.status === st
+                                    ? st === "resolved"
+                                      ? "bg-emerald-500 text-black"
+                                      : st === "in_progress"
+                                      ? "bg-apple-blue text-white"
+                                      : "bg-amber-500 text-black"
+                                    : "bg-neutral-800 text-neutral-400 hover:text-white"
+                                }`}
+                              >
+                                {st === "open" ? "Abierto" : st === "in_progress" ? "En Revisión" : "Resuelto ✓"}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Acción Rápida de God Mode: Habilitar Paneles Solicitados con 1 Clic */}
+                        {activeAdminTicket.requestedModules && activeAdminTicket.requestedModules.length > 0 && (
+                          <div className="p-3 rounded-2xl bg-neutral-800/90 border border-neutral-700 flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 text-xs">
+                              <Layers className="w-4 h-4 text-apple-green shrink-0" />
+                              <span className="font-semibold text-neutral-200">
+                                Acción Rápida God Mode (Aprovisionamiento de Panel):
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {activeAdminTicket.requestedModules.map((modKey) => {
+                                const modInfo = AVAILABLE_MODULES.find((m) => m.key === modKey);
+                                const isAlreadyActive = ticketTenant?.activeModules.includes(modKey);
+                                return (
+                                  <button
+                                    key={modKey}
+                                    type="button"
+                                    onClick={() => handleApproveAndEnableModule(activeAdminTicket, modKey)}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                      isAlreadyActive
+                                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                                        : "bg-apple-green hover:bg-emerald-500 text-black shadow-md"
+                                    }`}
+                                  >
+                                    <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                                    <span>
+                                      {isAlreadyActive
+                                        ? `${modInfo?.name || modKey} (Ya Habilitado)`
+                                        : `Aprobar y Habilitar "${modInfo?.name || modKey}"`}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Conversación / Hilo de Mensajes Bidireccional */}
+                      <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-neutral-50/40 dark:bg-[#121318]">
+                        {activeAdminTicket.messages.map((msg) => {
+                          const isAdmin = msg.senderRole === "superadmin";
+                          return (
+                            <div
+                              key={msg.id}
+                              className={`flex flex-col ${isAdmin ? "items-end" : "items-start"}`}
+                            >
+                              <div className="flex items-center gap-1.5 mb-1 px-1">
+                                <span className={`text-[10px] font-bold ${
+                                  isAdmin ? "text-emerald-500 font-mono" : "text-apple-blue"
+                                }`}>
+                                  {isAdmin
+                                    ? `⚡ ${msg.senderName}`
+                                    : `👤 ${msg.senderName} (${activeAdminTicket.tenantName})`}
+                                </span>
+                                <span className="text-[9px] text-neutral-400 font-mono">
+                                  {new Date(msg.createdAt).toLocaleTimeString("es-NI", { hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                              </div>
+                              <div
+                                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed shadow-xs ${
+                                  isAdmin
+                                    ? "bg-neutral-900 text-apple-green border border-apple-green/30 rounded-br-xs font-mono"
+                                    : "bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 border border-neutral-200 dark:border-neutral-700 rounded-bl-xs"
+                                }`}
+                              >
+                                {msg.text}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Caja de Respuesta del SuperAdmin (God Mode -> Cliente) */}
+                      <form
+                        onSubmit={handleSendAdminReply}
+                        className="p-3 border-t border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#18191f] flex items-center gap-2"
+                      >
+                        <input
+                          type="text"
+                          value={adminReplyText}
+                          onChange={(e) => setAdminReplyText(e.target.value)}
+                          placeholder={`Responder a ${activeAdminTicket.createdByName} (${activeAdminTicket.tenantName})...`}
+                          className="flex-1 px-3.5 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs focus:outline-none focus:ring-2 focus:ring-apple-green"
+                        />
+                        <button
+                          type="submit"
+                          className="px-4 py-2.5 rounded-xl bg-apple-green hover:bg-emerald-500 text-black text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Responder como God Mode</span>
+                        </button>
+                      </form>
+                    </div>
+                  );
+                })() : null}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -269,8 +269,8 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
     },
     hr: {
       nodeNum: "06",
-      title: "RRHH & Turnos",
-      category: "PERSONAL",
+      title: "RRHH & Nómina",
+      category: "PERSONAL & PLANILLA",
       badge: "Al Día",
       icon: <UserCheck className="w-4 h-4" />,
       colorScheme: {
@@ -279,15 +279,15 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
         lineColor: "#0d9488",
         pulseColor: "#2dd4bf",
       },
-      statMain: `${users.length > 0 ? users.length : 3} Colaboradores`,
-      statSub: `${users.filter(u => u.active).length || 3} activos en turno de caja y bodega`,
-      actionView: "users",
-      actionLabel: "Gestionar Personal",
-      desc: "Asistencia de empleados, roles de acceso restringido y control de turnos.",
+      statMain: "4 Colaboradores",
+      statSub: "Planilla quincenal C$ 26,600.00 • INSS al día",
+      actionView: "hr",
+      actionLabel: "Abrir RRHH & Nómina",
+      desc: "Expedientes laborales, reloj marcador de asistencia, horas extras, INSS y colillas térmicas de pago.",
       events: [
         "[08:00:10] ASISTENCIA: Cajero 1 inició turno",
         "[08:02:00] ASISTENCIA: Bodeguero inició turno",
-        "[07:55:00] TURNO: Caja aperturada conforme",
+        "[07:55:00] NÓMINA: Planilla quincenal conciliada",
       ],
     },
     production: {

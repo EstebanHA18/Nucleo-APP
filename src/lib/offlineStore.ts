@@ -7,13 +7,16 @@ import {
   Batch, 
   CashRegisterSession,
   PetPatient,
-  ClinicalPatient 
+  ClinicalPatient,
+  HREmployee,
+  SupportTicket
 } from "@/types";
 import { 
   INITIAL_PRODUCTS, 
   INITIAL_CUSTOMERS, 
   INITIAL_VET_PATIENTS, 
-  INITIAL_CLINICAL_PATIENTS 
+  INITIAL_CLINICAL_PATIENTS,
+  INITIAL_HR_EMPLOYEES
 } from "./constants";
 
 export function getBatchExpirationStatus(dateStr?: string): {
@@ -83,7 +86,7 @@ export const INITIAL_TENANTS: TenantSettings[] = [
     secondaryCurrency: "USD",
     exchangeRate: 36.62,
     taxPercentage: 15.0,
-    activeModules: ["pos", "inventory", "billing", "customers", "expenses", "veterinary", "clinical"],
+    activeModules: ["pos", "inventory", "billing", "customers", "expenses", "veterinary", "clinical", "hr"],
     ticketFormat: "80mm",
     ticketHeader: "Ferretería El Tornillo Dorado",
     ticketFooter: "¡Gracias por su compra! Revise su mercadería al salir.",
@@ -212,6 +215,76 @@ const STORAGE_KEYS = {
   CASH_SESSION_HISTORY: "nucleo_cash_session_history",
   VET_PATIENTS: "nucleo_vet_patients",
   CLINICAL_PATIENTS: "nucleo_clinical_patients",
+  HR_EMPLOYEES: "nucleo_hr_employees",
+  SUPPORT_TICKETS: "nucleo_support_tickets",
+};
+
+export const getStoredHREmployees = (): HREmployee[] => {
+  if (typeof window === "undefined") return INITIAL_HR_EMPLOYEES;
+  const raw = localStorage.getItem(STORAGE_KEYS.HR_EMPLOYEES);
+  if (!raw) {
+    localStorage.setItem(STORAGE_KEYS.HR_EMPLOYEES, JSON.stringify(INITIAL_HR_EMPLOYEES));
+    return INITIAL_HR_EMPLOYEES;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return INITIAL_HR_EMPLOYEES;
+  }
+};
+
+export const saveStoredHREmployees = (employees: HREmployee[]) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEYS.HR_EMPLOYEES, JSON.stringify(employees));
+};
+
+export const INITIAL_SUPPORT_TICKETS: SupportTicket[] = [
+  {
+    id: "tkt-initial-1",
+    ticketCode: "TKT-1001",
+    tenantId: "tenant-ferreteria-1",
+    tenantName: "Ferretería El Tornillo Dorado",
+    createdByUserId: "usr-owner",
+    createdByName: "Don Carlos Mendoza",
+    type: "module_request",
+    requestedModules: ["hr"],
+    subject: "Solicitud de activación del módulo RRHH & Nómina",
+    description: "Estimado administrador, deseamos habilitar el panel de Recursos Humanos y Nómina para gestionar la planilla quincenal de nuestros 8 colaboradores en ferretería.",
+    priority: "media",
+    status: "open",
+    createdAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+    unreadByAdmin: true,
+    unreadByClient: false,
+    messages: [
+      {
+        id: "msg-init-1",
+        senderRole: "client",
+        senderName: "Don Carlos Mendoza",
+        text: "Estimado administrador, deseamos habilitar el panel de Recursos Humanos y Nómina para gestionar la planilla quincenal de nuestros 8 colaboradores en ferretería.",
+        createdAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+      },
+    ],
+  },
+];
+
+export const getStoredSupportTickets = (): SupportTicket[] => {
+  if (typeof window === "undefined") return INITIAL_SUPPORT_TICKETS;
+  const raw = localStorage.getItem(STORAGE_KEYS.SUPPORT_TICKETS);
+  if (!raw) {
+    localStorage.setItem(STORAGE_KEYS.SUPPORT_TICKETS, JSON.stringify(INITIAL_SUPPORT_TICKETS));
+    return INITIAL_SUPPORT_TICKETS;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return INITIAL_SUPPORT_TICKETS;
+  }
+};
+
+export const saveStoredSupportTickets = (tickets: SupportTicket[]) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEYS.SUPPORT_TICKETS, JSON.stringify(tickets));
 };
 
 export const getStoredVetPatients = (): PetPatient[] => {
@@ -262,7 +335,18 @@ export const getStoredTenantsList = (): TenantSettings[] => {
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
+      let updated = false;
+      const synced = parsed.map((t: TenantSettings) => {
+        if (t.id === "tenant-ferreteria-1" && Array.isArray(t.activeModules) && !t.activeModules.includes("hr")) {
+          updated = true;
+          return { ...t, activeModules: [...t.activeModules, "hr" as const] };
+        }
+        return t;
+      });
+      if (updated) {
+        localStorage.setItem(STORAGE_KEYS.TENANTS_LIST, JSON.stringify(synced));
+      }
+      return synced;
     }
     return INITIAL_TENANTS;
   } catch {
@@ -294,6 +378,10 @@ export const getStoredTenant = (): TenantSettings | null => {
       }
       if (!parsed.activeModules.includes("clinical")) {
         parsed.activeModules.push("clinical");
+        changed = true;
+      }
+      if (!parsed.activeModules.includes("hr")) {
+        parsed.activeModules.push("hr");
         changed = true;
       }
       if (changed) {
