@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { TenantSettings, AppUser } from "@/types";
 import { getCentralAmericaNow } from "@/lib/centralAmericaBilling";
+import { NucleoIcon } from "./NucleoIcon";
 
 interface LandingAndLoginProps {
   tenants: TenantSettings[];
@@ -258,10 +259,8 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
           {/* Logo y Badge de Suite */}
           <div className="flex items-center gap-3">
             <div className="relative group cursor-pointer">
-              <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-apple-blue via-blue-600 to-cyan-400 text-white flex items-center justify-center font-extrabold text-base shadow-lg shadow-apple-blue/25 group-hover:scale-105 transition-transform">
-                N
-              </div>
-              <span className="absolute -bottom-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-[#0c0d12] rounded-full animate-pulse" />
+              <NucleoIcon size={34} showGlow={true} />
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-[#0c0d12] rounded-full animate-pulse" />
             </div>
             
             <div>

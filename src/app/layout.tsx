@@ -4,6 +4,10 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Núcleo ERP // Sistema Modular Multi-Tenant",
   description: "ERP modular donde cada negocio construye su propio sistema activando únicamente los módulos que necesita.",
+  icons: {
+    icon: "/logo-nucleo.svg",
+    apple: "/logo-nucleo.svg",
+  },
 };
 
 export default function RootLayout({
@@ -14,6 +18,7 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <head>
+        <link rel="icon" href="/logo-nucleo.svg" type="image/svg+xml" />
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){

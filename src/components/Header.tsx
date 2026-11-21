@@ -18,6 +18,7 @@ import {
   LogOut
 } from "lucide-react";
 import { TenantSettings, AppUser } from "@/types";
+import { NucleoIcon } from "./NucleoIcon";
 
 interface HeaderProps {
   tenant: TenantSettings;
@@ -71,12 +72,10 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center gap-3">
           <div 
             onClick={() => setActiveView("spatial")}
-            className="flex items-center gap-2 cursor-pointer group"
+            className="flex items-center gap-2.5 cursor-pointer group"
           >
-            <div className="w-7 h-7 rounded-lg bg-apple-blue flex items-center justify-center text-white shadow-sm font-bold text-xs">
-              N
-            </div>
-            <span className="font-bold text-sm tracking-tight text-neutral-900 dark:text-white">
+            <NucleoIcon size={28} showGlow={true} />
+            <span className="font-extrabold text-sm tracking-tight text-neutral-900 dark:text-white">
               NÚCLEO
             </span>
           </div>

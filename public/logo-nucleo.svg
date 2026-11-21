@@ -1,0 +1,29 @@
+<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1c1c1f" />
+      <stop offset="50%" stop-color="#0d0d10" />
+      <stop offset="100%" stop-color="#040405" />
+    </linearGradient>
+    <linearGradient id="border" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="rgba(255, 255, 255, 0.45)" />
+      <stop offset="40%" stop-color="rgba(255, 255, 255, 0.15)" />
+      <stop offset="100%" stop-color="rgba(255, 255, 255, 0.05)" />
+    </linearGradient>
+    <linearGradient id="glyph" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="85%" stop-color="#F4F4F5" />
+      <stop offset="100%" stop-color="#E4E4E7" />
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="30" height="30" rx="8" fill="url(#bg)" />
+  <rect x="1" y="1" width="30" height="30" rx="8" stroke="url(#border)" stroke-width="1" />
+  <path
+    d="M 7.5 7 H 12.8 L 20.3 18.54 V 7 H 24.5 V 25 H 19.2 L 11.7 13.46 V 25 H 7.5 Z"
+    fill="url(#glyph)"
+    stroke="url(#glyph)"
+    stroke-width="0.6"
+    stroke-linejoin="round"
+    stroke-linecap="round"
+  />
+</svg>
