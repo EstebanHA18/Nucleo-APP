@@ -421,9 +421,8 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
   const satelliteKeysRef = useRef(satelliteKeys);
   satelliteKeysRef.current = satelliteKeys;
 
-  // Cantidad de niveles orbitales y altura total del lienzo
+  // Cantidad de niveles orbitales y altura dinámica del lienzo (crece hacia abajo conforme se añaden más núcleos)
   const rowsCount = Math.max(1, Math.ceil(satelliteKeys.length / 2));
-  const canvasTotalHeight = Math.max(760, rowsCount >= 3 ? 760 : 660);
 
   // =========================================================
   // SISTEMA DE ARRASTRE LIBRE Y POSICIONAMIENTO DE NODOS
@@ -431,6 +430,17 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
   const [nodePositions, setNodePositions] = useState<Record<string, NodePosition>>({});
   const positionsRef = useRef<Record<string, NodePosition>>({});
   const isDraggingRef = useRef<{ key: string; startX: number; startY: number; origX: number; origY: number; moved: boolean } | null>(null);
+
+  // Calcular la coordenada Y máxima entre todos los nodos activos para que el fondo siempre crezca hacia abajo con margen holgado
+  const maxNodeY = satelliteKeys.reduce((maxY, key, idx) => {
+    const pos = nodePositions[key];
+    const fallbackY = 150 + Math.floor(idx / 2) * 190;
+    const yVal = pos ? pos.y : fallbackY;
+    return Math.max(maxY, yVal);
+  }, nodePositions["pos"]?.y || 340);
+
+  const formulaHeight = 150 + (rowsCount - 1) * 190 + 220;
+  const canvasTotalHeight = Math.max(680, formulaHeight, maxNodeY + 210);
 
   // Función para calcular posiciones de constelación orbital espacial orgánica
   // Se colocan deliberadamente a partir de y = 150px para NUNCA invadir el header superior
@@ -440,28 +450,30 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
     const posW = isCompact ? 320 : 350;
     const satW = isCompact ? 240 : 270;
 
-    // Centro del núcleo POS
+    // Centro del núcleo POS ajustado suavemente según la cantidad de filas
     const centerX = Math.max(10, Math.round((w - posW) / 2));
-    const centerY = 330;
+    const centerY = rowsCount >= 5 ? 410 : rowsCount >= 4 ? 360 : 330;
 
-    // Ranuras orbitales orgánicas de constelación espacial (arcos elípticos asimétricos)
+    // Ranuras orbitales orgánicas de constelación espacial (arcos elípticos asimétricos que crecen hacia abajo)
     const constellationSlots = [
-      // 0: Órbita Superior Izquierda (Nodo 03 Inventario) -> y=150, libre del texto superior
+      // Nivel 1 (y ~ 150-165)
       { x: Math.max(20, Math.round(w * 0.045)), y: 150 },
-      // 1: Órbita Superior Derecha (Nodo 04 Finanzas - asimétrico, y=170)
-      { x: Math.max(w - satW - 20, Math.round(w * 0.955 - satW)), y: 170 },
-      // 2: Órbita Media Izquierda (Nodo 01 Clientes - arqueado hacia afuera)
+      { x: Math.max(w - satW - 20, Math.round(w * 0.955 - satW)), y: 165 },
+      // Nivel 2 (y ~ 345-360)
       { x: Math.max(12, Math.round(w * 0.02)), y: 345 },
-      // 3: Órbita Media Derecha (Nodo 05 Gastos - arqueado hacia afuera)
       { x: Math.max(w - satW - 12, Math.round(w * 0.98 - satW)), y: 360 },
-      // 4: Órbita Inferior Izquierda (Nodo 09 Veterinaria - arqueado hacia adentro)
-      { x: Math.max(28, Math.round(w * 0.07)), y: 535 },
-      // 5: Órbita Inferior Derecha (Nodo 10 Clínica - arqueado hacia adentro)
-      { x: Math.max(w - satW - 28, Math.round(w * 0.93 - satW)), y: 550 },
-      // 6: Órbita Inferior Central Izquierda (si hay 7mo)
-      { x: Math.max(20, Math.round(w * 0.25 - satW / 2)), y: 720 },
-      // 7: Órbita Inferior Central Derecha (si hay 8vo)
-      { x: Math.max(w - satW - 20, Math.round(w * 0.75 - satW / 2)), y: 720 },
+      // Nivel 3 (y ~ 535-550)
+      { x: Math.max(28, Math.round(w * 0.065)), y: 535 },
+      { x: Math.max(w - satW - 28, Math.round(w * 0.935 - satW)), y: 550 },
+      // Nivel 4 (y ~ 725-735)
+      { x: Math.max(36, Math.round(w * 0.14)), y: 725 },
+      { x: Math.max(w - satW - 36, Math.round(w * 0.86 - satW)), y: 735 },
+      // Nivel 5 (y ~ 915-925)
+      { x: Math.max(24, Math.round(w * 0.08)), y: 915 },
+      { x: Math.max(w - satW - 24, Math.round(w * 0.92 - satW)), y: 925 },
+      // Nivel 6 (y ~ 1105-1115)
+      { x: Math.max(40, Math.round(w * 0.18)), y: 1105 },
+      { x: Math.max(w - satW - 40, Math.round(w * 0.82 - satW)), y: 1115 },
     ];
 
     const defaults: Record<string, NodePosition> = {
@@ -477,15 +489,15 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
     });
 
     return defaults;
-  }, [satelliteKeys]);
+  }, [satelliteKeys, rowsCount]);
 
-  // Inicializar o cargar posiciones guardadas desde localStorage (v3 constelación)
+  // Inicializar o cargar posiciones guardadas desde localStorage (v4 constelación expansiva)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const container = containerRef.current;
     const width = container?.clientWidth || 1050;
 
-    const storageKey = `nucleo_spatial_coords_v3_${tenant.id}`;
+    const storageKey = `nucleo_spatial_coords_v4_${tenant.id}`;
     let saved: Record<string, NodePosition> | null = null;
     try {
       const raw = localStorage.getItem(storageKey);
@@ -515,6 +527,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
     setNodePositions(defaults);
     positionsRef.current = defaults;
     try {
+      localStorage.removeItem(`nucleo_spatial_coords_v4_${tenant.id}`);
       localStorage.removeItem(`nucleo_spatial_coords_v3_${tenant.id}`);
       localStorage.removeItem(`nucleo_spatial_coords_v2_${tenant.id}`);
       localStorage.removeItem(`nucleo_spatial_coords_${tenant.id}`);
@@ -586,11 +599,11 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
           // Si solo hizo clic, abrir inspector
           setSelectedNodeKey(isDraggingRef.current.key);
         } else {
-          // Guardar posiciones persistentes en v3
+          // Guardar posiciones persistentes en v4
           setNodePositions({ ...positionsRef.current });
           try {
             localStorage.setItem(
-              `nucleo_spatial_coords_v3_${tenant.id}`,
+              `nucleo_spatial_coords_v4_${tenant.id}`,
               JSON.stringify(positionsRef.current)
             );
           } catch {}
