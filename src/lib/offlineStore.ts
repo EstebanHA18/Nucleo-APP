@@ -11,7 +11,10 @@ import {
   HREmployee,
   SupportTicket,
   ProductionRecipe,
-  ProductionOrder
+  ProductionOrder,
+  RouteDriver,
+  DeliveryRoute,
+  RouteCustomerOrder
 } from "@/types";
 import { 
   INITIAL_PRODUCTS, 
@@ -20,7 +23,10 @@ import {
   INITIAL_CLINICAL_PATIENTS,
   INITIAL_HR_EMPLOYEES,
   INITIAL_RECIPES,
-  INITIAL_PRODUCTION_ORDERS
+  INITIAL_PRODUCTION_ORDERS,
+  INITIAL_ROUTE_DRIVERS,
+  INITIAL_DELIVERY_ROUTES,
+  INITIAL_ROUTE_ORDERS
 } from "./constants";
 
 export function getBatchExpirationStatus(dateStr?: string): {
@@ -90,7 +96,7 @@ export const INITIAL_TENANTS: TenantSettings[] = [
     secondaryCurrency: "USD",
     exchangeRate: 36.62,
     taxPercentage: 15.0,
-    activeModules: ["pos", "inventory", "billing", "customers", "expenses", "veterinary", "clinical", "hr", "production"],
+    activeModules: ["pos", "inventory", "billing", "customers", "expenses", "veterinary", "clinical", "hr", "production", "routes"],
     ticketFormat: "80mm",
     ticketHeader: "Ferretería El Tornillo Dorado",
     ticketFooter: "¡Gracias por su compra! Revise su mercadería al salir.",
@@ -223,6 +229,66 @@ const STORAGE_KEYS = {
   SUPPORT_TICKETS: "nucleo_support_tickets",
   PRODUCTION_RECIPES: "nucleo_production_recipes",
   PRODUCTION_ORDERS: "nucleo_production_orders",
+  ROUTE_DRIVERS: "nucleo_route_drivers",
+  DELIVERY_ROUTES: "nucleo_delivery_routes",
+  ROUTE_ORDERS: "nucleo_route_orders",
+};
+
+export const getStoredRouteDrivers = (): RouteDriver[] => {
+  if (typeof window === "undefined") return INITIAL_ROUTE_DRIVERS;
+  const raw = localStorage.getItem(STORAGE_KEYS.ROUTE_DRIVERS);
+  if (!raw) {
+    localStorage.setItem(STORAGE_KEYS.ROUTE_DRIVERS, JSON.stringify(INITIAL_ROUTE_DRIVERS));
+    return INITIAL_ROUTE_DRIVERS;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return INITIAL_ROUTE_DRIVERS;
+  }
+};
+
+export const saveStoredRouteDrivers = (drivers: RouteDriver[]) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEYS.ROUTE_DRIVERS, JSON.stringify(drivers));
+};
+
+export const getStoredDeliveryRoutes = (): DeliveryRoute[] => {
+  if (typeof window === "undefined") return INITIAL_DELIVERY_ROUTES;
+  const raw = localStorage.getItem(STORAGE_KEYS.DELIVERY_ROUTES);
+  if (!raw) {
+    localStorage.setItem(STORAGE_KEYS.DELIVERY_ROUTES, JSON.stringify(INITIAL_DELIVERY_ROUTES));
+    return INITIAL_DELIVERY_ROUTES;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return INITIAL_DELIVERY_ROUTES;
+  }
+};
+
+export const saveStoredDeliveryRoutes = (routes: DeliveryRoute[]) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEYS.DELIVERY_ROUTES, JSON.stringify(routes));
+};
+
+export const getStoredRouteOrders = (): RouteCustomerOrder[] => {
+  if (typeof window === "undefined") return INITIAL_ROUTE_ORDERS;
+  const raw = localStorage.getItem(STORAGE_KEYS.ROUTE_ORDERS);
+  if (!raw) {
+    localStorage.setItem(STORAGE_KEYS.ROUTE_ORDERS, JSON.stringify(INITIAL_ROUTE_ORDERS));
+    return INITIAL_ROUTE_ORDERS;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return INITIAL_ROUTE_ORDERS;
+  }
+};
+
+export const saveStoredRouteOrders = (orders: RouteCustomerOrder[]) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEYS.ROUTE_ORDERS, JSON.stringify(orders));
 };
 
 export const getStoredRecipes = (): ProductionRecipe[] => {
@@ -391,6 +457,10 @@ export const getStoredTenantsList = (): TenantSettings[] => {
             newMods.push("production" as const);
             updated = true;
           }
+          if (!newMods.includes("routes")) {
+            newMods.push("routes" as const);
+            updated = true;
+          }
           if (updated) {
             return { ...t, activeModules: newMods };
           }
@@ -440,6 +510,10 @@ export const getStoredTenant = (): TenantSettings | null => {
       }
       if (!parsed.activeModules.includes("production")) {
         parsed.activeModules.push("production");
+        changed = true;
+      }
+      if (!parsed.activeModules.includes("routes")) {
+        parsed.activeModules.push("routes");
         changed = true;
       }
       if (changed) {

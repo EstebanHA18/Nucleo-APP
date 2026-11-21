@@ -17,8 +17,9 @@ import { VeterinaryManager } from "@/components/VeterinaryManager";
 import { ClinicalDentalManager } from "@/components/ClinicalDentalManager";
 import { HRManager } from "@/components/HRManager";
 import { ProductionManager } from "@/components/ProductionManager";
+import { RoutesManager } from "@/components/RoutesManager";
 import { LandingAndLogin } from "@/components/LandingAndLogin";
-import { TenantSettings, Product, Customer, Sale, AppUser, PetPatient, ClinicalPatient, PendingBill, SupportTicket, HREmployee, ProductionRecipe, ProductionOrder } from "@/types";
+import { TenantSettings, Product, Customer, Sale, AppUser, PetPatient, ClinicalPatient, PendingBill, SupportTicket, HREmployee, ProductionRecipe, ProductionOrder, RouteDriver, DeliveryRoute, RouteCustomerOrder } from "@/types";
 import { 
   getStoredTenant, 
   saveStoredTenant, 
@@ -39,7 +40,10 @@ import {
   saveStoredSupportTickets,
   getStoredHREmployees,
   getStoredRecipes,
-  getStoredProductionOrders
+  getStoredProductionOrders,
+  getStoredRouteDrivers,
+  getStoredDeliveryRoutes,
+  getStoredRouteOrders
 } from "@/lib/offlineStore";
 
 export default function Home() {
@@ -62,6 +66,9 @@ export default function Home() {
   const [hrEmployees, setHrEmployees] = useState<HREmployee[]>([]);
   const [recipes, setRecipes] = useState<ProductionRecipe[]>([]);
   const [productionOrders, setProductionOrders] = useState<ProductionOrder[]>([]);
+  const [routeDrivers, setRouteDrivers] = useState<RouteDriver[]>([]);
+  const [deliveryRoutes, setDeliveryRoutes] = useState<DeliveryRoute[]>([]);
+  const [routeOrders, setRouteOrders] = useState<RouteCustomerOrder[]>([]);
   const [pendingBill, setPendingBill] = useState<PendingBill | null>(null);
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
 
@@ -90,6 +97,9 @@ export default function Home() {
       setHrEmployees(getStoredHREmployees());
       setRecipes(getStoredRecipes());
       setProductionOrders(getStoredProductionOrders());
+      setRouteDrivers(getStoredRouteDrivers());
+      setDeliveryRoutes(getStoredDeliveryRoutes());
+      setRouteOrders(getStoredRouteOrders());
       setSupportTickets(getStoredSupportTickets());
 
       const loadedUsers = getStoredUsers(storedTenant);
@@ -480,6 +490,24 @@ export default function Home() {
                 setOrders={setProductionOrders}
                 products={products}
                 setProducts={setProducts}
+              />
+            )}
+
+            {/* 13. Módulo de Rutas, Conductores, Mapa & Pedidos */}
+            {activeView === "routes" && (
+              <RoutesManager
+                tenant={tenant}
+                drivers={routeDrivers}
+                setDrivers={setRouteDrivers}
+                routes={deliveryRoutes}
+                setRoutes={setDeliveryRoutes}
+                routeOrders={routeOrders}
+                setRouteOrders={setRouteOrders}
+                products={products}
+                onSendOrderToPOS={(bill) => {
+                  setPendingBill(bill);
+                  setActiveView("pos");
+                }}
               />
             )}
           </main>

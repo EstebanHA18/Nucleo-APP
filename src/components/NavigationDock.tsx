@@ -13,7 +13,8 @@ import {
   Dog,
   Stethoscope,
   UserCheck,
-  Layers
+  Layers,
+  MapPin
 } from "lucide-react";
 import { TenantSettings, AppUser } from "@/types";
 
@@ -189,6 +190,22 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           >
             <Layers className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Producción</span>
+          </button>
+        )}
+
+        {/* 10. Módulo Rutas, Mapa & Conductores (Si tiene permiso y está activo) */}
+        {canAccess("routes") && (
+          <button
+            type="button"
+            onClick={() => setActiveView("routes")}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+              activeView === "routes"
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            }`}
+          >
+            <MapPin className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Rutas & Mapa</span>
           </button>
         )}
 

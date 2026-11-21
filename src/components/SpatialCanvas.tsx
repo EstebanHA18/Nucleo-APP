@@ -19,7 +19,8 @@ import {
   Stethoscope,
   ArrowUpRight,
   RotateCcw,
-  GripVertical
+  GripVertical,
+  MapPin
 } from "lucide-react";
 import { TenantSettings, Product, Customer, Sale, ModuleKey, PetPatient, ClinicalPatient, AppUser } from "@/types";
 import { getCurrentCashSession } from "@/lib/offlineStore";
@@ -311,6 +312,29 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
         "[16:30:00] RECETA: Descuento de ingredientes en bodega",
         "[15:45:00] PRODUCCIÓN: Lote OP-2026-001 completado",
         "[14:00:00] STOCK: Insumos y costos BOM verificados",
+      ],
+    },
+    routes: {
+      nodeNum: "11",
+      title: "Rutas, Mapa & Entregas",
+      category: "LOGÍSTICA & PREVENTA GPS",
+      badge: "GPS Activo",
+      icon: <MapPin className="w-4 h-4" />,
+      colorScheme: {
+        accent: "text-indigo-600 dark:text-indigo-400",
+        bg: "bg-indigo-500",
+        lineColor: "#4f46e5",
+        pulseColor: "#818cf8",
+      },
+      statMain: "2 Rutas • 6 Pines",
+      statSub: "3 Conductores activos • Toma de pedidos en sitio",
+      actionView: "routes",
+      actionLabel: "Abrir Mapa de Rutas & Conductores",
+      desc: "Trazado de rutas en mapa con pines, asignación de conductores y levantamiento de pedidos de inventario en visita.",
+      events: [
+        "[09:22:00] PEDIDO_RUTA: PED-RUT-001 capturado en Pin #1",
+        "[08:30:00] GPS_FLOTA: Conductores Marvin y Luis en recorrido",
+        "[08:00:00] DESPACHO: Hoja de ruta Occidente Norte sincronizada",
       ],
     },
     reports: {

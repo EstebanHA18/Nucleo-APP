@@ -23,6 +23,7 @@ export type ModuleKey =
   | 'expenses'    // Gastos y compras
   | 'hr'          // RRHH & Nómina
   | 'production'  // Producción & Recetas
+  | 'routes'      // Rutas, Conductores, Mapa & Pedidos de Preventa / Entrega
   | 'reports'
   | 'veterinary'  // Módulo Veterinario: Pacientes, vacunas y expedientes
   | 'clinical';   // Módulo Clínico & Dental: Pacientes, odontograma e historias clínicas
@@ -155,7 +156,7 @@ export interface OwnerProfile {
   pinCode?: string;
 }
 
-export type UserRole = 'superadmin' | 'owner' | 'cashier' | 'inventory_clerk' | 'supervisor' | 'custom';
+export type UserRole = 'superadmin' | 'owner' | 'cashier' | 'inventory_clerk' | 'driver' | 'supervisor' | 'custom';
 
 export interface AppUser {
   id: string;
@@ -265,8 +266,8 @@ export interface ConsultationMedicineItem {
 }
 
 export interface PendingBill {
-  id: string; // Consultation ID
-  source: 'veterinary' | 'clinical';
+  id: string; // Consultation or Route Order ID
+  source: 'veterinary' | 'clinical' | 'routes';
   patientId: string;
   patientName: string;
   ownerName?: string;
@@ -594,5 +595,97 @@ export interface ProductionOrder {
   batchCodeGenerated?: string;
   startedAt: string;
   completedAt?: string;
+  notes?: string;
+}
+
+// ==========================================
+// MODELOS PARA MÓDULO DE RUTAS, CONDUCTORES, MAPA & PEDIDOS EN RUTA
+// ==========================================
+
+export type DriverVehicleType = 'camion' | 'camioneta' | 'panel' | 'motocicleta' | 'furgon';
+export type DriverStatus = 'disponible' | 'en_ruta' | 'fuera_de_turno';
+
+export interface RouteDriver {
+  id: string;
+  code: string; // Ej: "DRV-01"
+  fullName: string;
+  phone: string;
+  dni: string;
+  licenseNumber: string;
+  vehicleType: DriverVehicleType;
+  vehiclePlate: string; // Ej: "CH-24910"
+  vehicleModel: string; // Ej: "Isuzu NPR 4 Ton" o "Toyota Hilux"
+  pinCode: string; // PIN para iniciar vista de conductor
+  status: DriverStatus;
+  colorTag: string; // Color distintivo en mapa
+  createdAt: string;
+}
+
+export type RoutePinStatus = 'pendiente' | 'visitado_con_pedido' | 'entregado' | 'sin_pedido';
+
+export interface RouteMapPin {
+  id: string;
+  sequenceOrder: number; // Orden de parada 1, 2, 3...
+  placeName: string; // Ej: "Ferretería San José - El Viejo"
+  contactName: string;
+  contactPhone: string;
+  address: string;
+  cityZone: string; // Ej: "Chinandega Centro", "El Viejo", "Chichigalpa"
+  lat: number; // Coordenada real ej: 12.6294
+  lng: number; // Coordenada real ej: -87.1311
+  mapX: number; // Porcentaje horizontal en el lienzo de mapa interactivo (5..95)
+  mapY: number; // Porcentaje vertical en el lienzo de mapa interactivo (8..92)
+  notes?: string;
+  status: RoutePinStatus;
+  visitedAt?: string;
+  visitedByDriverName?: string;
+}
+
+export interface DeliveryRoute {
+  id: string;
+  code: string; // Ej: "RUT-001"
+  name: string; // Ej: "Ruta Occidente Norte (Chinandega - El Viejo - Corinto)"
+  zoneDescription: string;
+  assignedDriverIds: string[]; // 1 o más conductores asignados a la ruta
+  pins: RouteMapPin[];
+  status: 'activa' | 'en_recorrido' | 'completada';
+  scheduledDate: string;
+  estimatedDistanceKm: number;
+  createdAt: string;
+}
+
+export interface RouteOrderItem {
+  productId: string;
+  sku: string;
+  name: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+}
+
+export type RouteOrderStatus = 'pendiente_despacho' | 'en_camino' | 'entregado_facturado' | 'cancelado';
+
+export interface RouteCustomerOrder {
+  id: string;
+  orderNumber: string; // Ej: "PED-RUT-001"
+  routeId: string;
+  routeCode: string;
+  routeName: string;
+  pinId: string;
+  placeName: string;
+  contactName: string;
+  contactPhone: string;
+  address: string;
+  driverId: string;
+  driverName: string;
+  vehiclePlate: string;
+  items: RouteOrderItem[];
+  subtotal: number;
+  tax: number;
+  total: number;
+  paymentCondition: 'contado_efectivo' | 'transferencia' | 'contra_entrega';
+  status: RouteOrderStatus;
+  createdAt: string;
   notes?: string;
 }
