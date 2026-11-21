@@ -16,8 +16,9 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { VeterinaryManager } from "@/components/VeterinaryManager";
 import { ClinicalDentalManager } from "@/components/ClinicalDentalManager";
 import { HRManager } from "@/components/HRManager";
+import { ProductionManager } from "@/components/ProductionManager";
 import { LandingAndLogin } from "@/components/LandingAndLogin";
-import { TenantSettings, Product, Customer, Sale, AppUser, PetPatient, ClinicalPatient, PendingBill, SupportTicket, HREmployee } from "@/types";
+import { TenantSettings, Product, Customer, Sale, AppUser, PetPatient, ClinicalPatient, PendingBill, SupportTicket, HREmployee, ProductionRecipe, ProductionOrder } from "@/types";
 import { 
   getStoredTenant, 
   saveStoredTenant, 
@@ -36,7 +37,9 @@ import {
   saveStoredClinicalPatients,
   getStoredSupportTickets,
   saveStoredSupportTickets,
-  getStoredHREmployees
+  getStoredHREmployees,
+  getStoredRecipes,
+  getStoredProductionOrders
 } from "@/lib/offlineStore";
 
 export default function Home() {
@@ -57,6 +60,8 @@ export default function Home() {
   const [vetPatients, setVetPatients] = useState<PetPatient[]>([]);
   const [clinicalPatients, setClinicalPatients] = useState<ClinicalPatient[]>([]);
   const [hrEmployees, setHrEmployees] = useState<HREmployee[]>([]);
+  const [recipes, setRecipes] = useState<ProductionRecipe[]>([]);
+  const [productionOrders, setProductionOrders] = useState<ProductionOrder[]>([]);
   const [pendingBill, setPendingBill] = useState<PendingBill | null>(null);
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
 
@@ -83,6 +88,8 @@ export default function Home() {
       setVetPatients(getStoredVetPatients());
       setClinicalPatients(getStoredClinicalPatients());
       setHrEmployees(getStoredHREmployees());
+      setRecipes(getStoredRecipes());
+      setProductionOrders(getStoredProductionOrders());
       setSupportTickets(getStoredSupportTickets());
 
       const loadedUsers = getStoredUsers(storedTenant);
@@ -460,6 +467,19 @@ export default function Home() {
                 tenant={tenant}
                 employees={hrEmployees}
                 setEmployees={setHrEmployees}
+              />
+            )}
+
+            {/* 12. Módulo de Recetas, Fórmulas & Producción */}
+            {activeView === "production" && (
+              <ProductionManager
+                tenant={tenant}
+                recipes={recipes}
+                setRecipes={setRecipes}
+                orders={productionOrders}
+                setOrders={setProductionOrders}
+                products={products}
+                setProducts={setProducts}
               />
             )}
           </main>

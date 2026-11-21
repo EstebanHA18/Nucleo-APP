@@ -526,3 +526,73 @@ export interface SupportTicket {
   unreadByAdmin?: boolean;
   unreadByClient?: boolean;
 }
+
+// ==========================================
+// MODELOS PARA MÓDULO DE RECETAS & PRODUCCIÓN
+// ==========================================
+
+export type RecipeCategory = 
+  | 'gastronomia_alimentos'
+  | 'kits_ferreteria'
+  | 'construccion_mezclas'
+  | 'formulaciones_quimicas'
+  | 'paquetes_comerciales';
+
+export interface RecipeIngredient {
+  id: string;
+  productId: string; // ID del insumo / materia prima en Inventario
+  productName: string;
+  sku: string;
+  unit: string;
+  quantityRequired: number; // Cantidad requerida por lote o unidad producida
+  unitCost: number;
+  subtotalCost: number;
+  wastePercentage?: number; // % de merma estimada (ej. 2%)
+}
+
+export interface ProductionRecipe {
+  id: string;
+  code: string; // Ej: "REC-001"
+  name: string; // Ej: "Kit Instalación Eléctrica Básica" o "Mortero Premezclado Seco 25Kg"
+  category: RecipeCategory;
+  outputProductId?: string; // Si está vinculado a un producto terminado del inventario
+  outputProductName: string;
+  outputSku: string;
+  outputUnit: string; // Ej: "Kit", "Saco", "Platillo", "Lote"
+  yieldQuantity: number; // Cantidad resultante por receta base (ej. 1 Kit o 10 Unidades)
+  ingredients: RecipeIngredient[];
+  laborCostPerBatch: number; // Costo de mano de obra / empaque por lote
+  indirectCostPerBatch: number; // Energía, gas, empaque adicional
+  totalRecipeCost: number; // Suma de ingredientes + mano de obra + indirectos
+  unitProductionCost: number; // totalRecipeCost / yieldQuantity
+  suggestedSalePrice: number; // Precio de venta sugerido por unidad
+  estimatedMarginPercent: number; // % de margen bruto
+  autoDeductOnPosSale: boolean; // Descontar automáticamente materia prima al vender en POS
+  prepTimeMinutes: number;
+  instructions?: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export type ProductionOrderStatus = 'planificada' | 'en_proceso' | 'completada' | 'cancelada';
+
+export interface ProductionOrder {
+  id: string;
+  orderNumber: string; // Ej: "OP-2026-001"
+  recipeId: string;
+  recipeCode: string;
+  recipeName: string;
+  batchesToProduce: number; // Multiplicador de lotes de la receta
+  totalOutputQuantity: number; // batchesToProduce * yieldQuantity
+  outputUnit: string;
+  totalEstimatedCost: number;
+  unitCostResult: number;
+  responsibleName: string;
+  status: ProductionOrderStatus;
+  deductedFromInventory: boolean;
+  addedOutputToInventory: boolean;
+  batchCodeGenerated?: string;
+  startedAt: string;
+  completedAt?: string;
+  notes?: string;
+}

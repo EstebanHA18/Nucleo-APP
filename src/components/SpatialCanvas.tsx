@@ -293,7 +293,7 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
     production: {
       nodeNum: "07",
       title: "Recetas & Producción",
-      category: "TRANSFORMACIÓN",
+      category: "TRANSFORMACIÓN & BOM",
       badge: "Recetas ON",
       icon: <Layers className="w-4 h-4" />,
       colorScheme: {
@@ -302,15 +302,15 @@ export const SpatialCanvas: React.FC<SpatialCanvasProps> = ({
         lineColor: "#e11d48",
         pulseColor: "#fb7185",
       },
-      statMain: "12 Fórmulas",
-      statSub: "Descuento automático de insumos",
-      actionView: "inventory",
-      actionLabel: "Ver Recetas e Insumos",
-      desc: "Descuenta materias primas automáticamente con cada venta de producto terminado.",
+      statMain: "3 Fórmulas & Kits",
+      statSub: "Explosión BOM y descuento automático",
+      actionView: "production",
+      actionLabel: "Abrir Recetas & Producción",
+      desc: "Descuenta materias primas automáticamente e ingresa lotes de producto terminado al Kardex.",
       events: [
         "[16:30:00] RECETA: Descuento de ingredientes en bodega",
-        "[15:45:00] PRODUCCIÓN: Lote preparado con éxito",
-        "[14:00:00] STOCK: Insumos verificados",
+        "[15:45:00] PRODUCCIÓN: Lote OP-2026-001 completado",
+        "[14:00:00] STOCK: Insumos y costos BOM verificados",
       ],
     },
     reports: {

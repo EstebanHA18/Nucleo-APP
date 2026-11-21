@@ -9,14 +9,18 @@ import {
   PetPatient,
   ClinicalPatient,
   HREmployee,
-  SupportTicket
+  SupportTicket,
+  ProductionRecipe,
+  ProductionOrder
 } from "@/types";
 import { 
   INITIAL_PRODUCTS, 
   INITIAL_CUSTOMERS, 
   INITIAL_VET_PATIENTS, 
   INITIAL_CLINICAL_PATIENTS,
-  INITIAL_HR_EMPLOYEES
+  INITIAL_HR_EMPLOYEES,
+  INITIAL_RECIPES,
+  INITIAL_PRODUCTION_ORDERS
 } from "./constants";
 
 export function getBatchExpirationStatus(dateStr?: string): {
@@ -86,7 +90,7 @@ export const INITIAL_TENANTS: TenantSettings[] = [
     secondaryCurrency: "USD",
     exchangeRate: 36.62,
     taxPercentage: 15.0,
-    activeModules: ["pos", "inventory", "billing", "customers", "expenses", "veterinary", "clinical", "hr"],
+    activeModules: ["pos", "inventory", "billing", "customers", "expenses", "veterinary", "clinical", "hr", "production"],
     ticketFormat: "80mm",
     ticketHeader: "Ferretería El Tornillo Dorado",
     ticketFooter: "¡Gracias por su compra! Revise su mercadería al salir.",
@@ -217,6 +221,46 @@ const STORAGE_KEYS = {
   CLINICAL_PATIENTS: "nucleo_clinical_patients",
   HR_EMPLOYEES: "nucleo_hr_employees",
   SUPPORT_TICKETS: "nucleo_support_tickets",
+  PRODUCTION_RECIPES: "nucleo_production_recipes",
+  PRODUCTION_ORDERS: "nucleo_production_orders",
+};
+
+export const getStoredRecipes = (): ProductionRecipe[] => {
+  if (typeof window === "undefined") return INITIAL_RECIPES;
+  const raw = localStorage.getItem(STORAGE_KEYS.PRODUCTION_RECIPES);
+  if (!raw) {
+    localStorage.setItem(STORAGE_KEYS.PRODUCTION_RECIPES, JSON.stringify(INITIAL_RECIPES));
+    return INITIAL_RECIPES;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return INITIAL_RECIPES;
+  }
+};
+
+export const saveStoredRecipes = (recipes: ProductionRecipe[]) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEYS.PRODUCTION_RECIPES, JSON.stringify(recipes));
+};
+
+export const getStoredProductionOrders = (): ProductionOrder[] => {
+  if (typeof window === "undefined") return INITIAL_PRODUCTION_ORDERS;
+  const raw = localStorage.getItem(STORAGE_KEYS.PRODUCTION_ORDERS);
+  if (!raw) {
+    localStorage.setItem(STORAGE_KEYS.PRODUCTION_ORDERS, JSON.stringify(INITIAL_PRODUCTION_ORDERS));
+    return INITIAL_PRODUCTION_ORDERS;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return INITIAL_PRODUCTION_ORDERS;
+  }
+};
+
+export const saveStoredProductionOrders = (orders: ProductionOrder[]) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEYS.PRODUCTION_ORDERS, JSON.stringify(orders));
 };
 
 export const getStoredHREmployees = (): HREmployee[] => {
@@ -337,9 +381,19 @@ export const getStoredTenantsList = (): TenantSettings[] => {
     if (Array.isArray(parsed) && parsed.length > 0) {
       let updated = false;
       const synced = parsed.map((t: TenantSettings) => {
-        if (t.id === "tenant-ferreteria-1" && Array.isArray(t.activeModules) && !t.activeModules.includes("hr")) {
-          updated = true;
-          return { ...t, activeModules: [...t.activeModules, "hr" as const] };
+        if (t.id === "tenant-ferreteria-1" && Array.isArray(t.activeModules)) {
+          let newMods = [...t.activeModules];
+          if (!newMods.includes("hr")) {
+            newMods.push("hr" as const);
+            updated = true;
+          }
+          if (!newMods.includes("production")) {
+            newMods.push("production" as const);
+            updated = true;
+          }
+          if (updated) {
+            return { ...t, activeModules: newMods };
+          }
         }
         return t;
       });
@@ -382,6 +436,10 @@ export const getStoredTenant = (): TenantSettings | null => {
       }
       if (!parsed.activeModules.includes("hr")) {
         parsed.activeModules.push("hr");
+        changed = true;
+      }
+      if (!parsed.activeModules.includes("production")) {
+        parsed.activeModules.push("production");
         changed = true;
       }
       if (changed) {
