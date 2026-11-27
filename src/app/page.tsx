@@ -634,11 +634,6 @@ export default function Home() {
                 setSupportTickets(updatedTickets);
                 saveStoredSupportTickets(updatedTickets);
               }}
-              clientLeads={clientLeads}
-              onSaveClientLeads={(updatedLeads) => {
-                setClientLeads(updatedLeads);
-                saveStoredClientLeads(updatedLeads);
-              }}
             />
           )}
 
