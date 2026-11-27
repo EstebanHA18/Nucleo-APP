@@ -192,7 +192,7 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
       return;
     }
 
-    setLoginError("Credenciales incorrectas. Para administración utiliza: admin / admin123");
+    setLoginError("Credenciales incorrectas. Verifica tu usuario y contraseña o utiliza una cuenta demo.");
   };
 
   // Acceso Rápido 1-Click para Demos
@@ -867,63 +867,216 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
       </section>
 
       {/* ======================================================== */}
-      {/* 4. BENTO GRID DE CARACTERÍSTICAS QUE VENDEN              */}
+      {/* 4. BENTO GRID DE CARACTERÍSTICAS QUE VENDEN (MARKETING)  */}
       {/* ======================================================== */}
-      <section className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-12 space-y-8">
+      <section className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-14 space-y-10">
         
-        <div className="text-center space-y-2 max-w-2xl mx-auto">
-          <span className="text-xs font-bold uppercase tracking-widest text-apple-blue">
-            Ventajas Competitivas
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-neutral-900 dark:text-white tracking-tight">
-            Por qué los negocios eligen Núcleo ERP
+        <div className="text-center space-y-3 max-w-3xl mx-auto">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-apple-blue/10 border border-apple-blue/20 text-apple-blue text-xs font-extrabold uppercase tracking-widest">
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>Ventajas Competitivas que Multiplican tu Rentabilidad</span>
+          </div>
+          <h2 className="text-3xl sm:text-5xl font-black text-neutral-900 dark:text-white tracking-tight leading-tight">
+            Deja de perder dinero por fugas,{" "}
+            <span className="bg-gradient-to-r from-apple-blue via-cyan-500 to-emerald-500 bg-clip-text text-transparent">
+              caídas de red o cajas descuadradas
+            </span>
           </h2>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">
-            Diseñado específicamente para superar los problemas reales de conexión y facturación en nuestra región.
+          <p className="text-sm sm:text-base text-neutral-600 dark:text-neutral-400 leading-relaxed">
+            La mayoría de sistemas en la nube te dejan paralizado cuando falla el internet y esconden tus ganancias reales.{" "}
+            <strong className="text-neutral-900 dark:text-white">
+              Núcleo ERP fue construido como una máquina de precisión comercial para que cada córdoba y cada dólar trabajen a tu favor.
+            </strong>
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           
           {/* Card 1: 100% Offline-First */}
-          <div className="p-7 rounded-3xl bg-white dark:bg-[#121319] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-3 relative overflow-hidden group hover:border-apple-blue/50 transition-all">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-              <WifiOff className="w-6 h-6" />
+          <div className="p-7 rounded-3xl bg-white dark:bg-[#121319] border border-neutral-200/80 dark:border-neutral-800 shadow-apple flex flex-col justify-between relative overflow-hidden group hover:border-emerald-500/50 hover:-translate-y-1 transition-all duration-300">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shadow-inner">
+                  <WifiOff className="w-6 h-6" />
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-mono font-extrabold uppercase tracking-wider border border-emerald-500/20">
+                  0% Ventas Perdidas
+                </span>
+              </div>
+              <h3 className="text-lg font-extrabold text-neutral-900 dark:text-white group-hover:text-emerald-500 transition-colors">
+                Blindaje 100% Offline-First Real
+              </h3>
+              <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                ¿Se cayó el internet o el servidor en tu municipio? Tu mostrador jamás se detiene. Factura, consulta stock y cobra a velocidad local instantánea; todo se respalda y sincroniza solo al volver la conexión.
+              </p>
             </div>
-            <h3 className="text-lg font-bold text-neutral-900 dark:text-white">
-              100% Offline-First Real
-            </h3>
-            <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
-              ¿Se cayó el internet en tu municipio? Con Núcleo sigues vendiendo, cobrando y emitiendo tickets sin retrasos. La base de datos local nunca se bloquea y se sincroniza cuando vuelve la señal.
-            </p>
+            <div className="pt-5 mt-5 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Motor Local Ultrarrápido
+              </span>
+              <span className="font-mono">99.99% Uptime</span>
+            </div>
           </div>
 
-          {/* Card 2: Impresión Bluetooth con Logo */}
-          <div className="p-7 rounded-3xl bg-white dark:bg-[#121319] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-3 relative overflow-hidden group hover:border-apple-blue/50 transition-all">
-            <div className="w-12 h-12 rounded-2xl bg-apple-blue/10 text-apple-blue flex items-center justify-center">
-              <Smartphone className="w-6 h-6" />
+          {/* Card 2: Caja Cuadrada al Centavo */}
+          <div className="p-7 rounded-3xl bg-white dark:bg-[#121319] border border-neutral-200/80 dark:border-neutral-800 shadow-apple flex flex-col justify-between relative overflow-hidden group hover:border-cyan-500/50 hover:-translate-y-1 transition-all duration-300">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 text-cyan-500 flex items-center justify-center shadow-inner">
+                  <BarChart3 className="w-6 h-6" />
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-[10px] font-mono font-extrabold uppercase tracking-wider border border-cyan-500/20">
+                  Cero Fugas de Caja
+                </span>
+              </div>
+              <h3 className="text-lg font-extrabold text-neutral-900 dark:text-white group-hover:text-cyan-500 transition-colors">
+                Caja Blindada & Utilidad Neta Real
+              </h3>
+              <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                Elimina los &ldquo;faltantes misteriosos&rdquo;. Arqueos Z asistidos por denominación en Córdobas y Dólares, conversión automática de vuelto y cálculo exacto de tu ganancia limpia (precio venta vs. costo real).
+              </p>
             </div>
-            <h3 className="text-lg font-bold text-neutral-900 dark:text-white">
-              Impresoras Térmicas Bluetooth
-            </h3>
-            <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
-              Conecta impresoras de 58mm y 80mm desde tu teléfono, tablet o PC. Facturas térmicas con tu logo comercial nítido, RUC, código de barras y desglose de IVA oficial.
-            </p>
+            <div className="pt-5 mt-5 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between text-[11px] font-semibold text-cyan-600 dark:text-cyan-400">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Bimoneda C$ / USD nativo
+              </span>
+              <span className="font-mono">+24% Control</span>
+            </div>
           </div>
 
-          {/* Card 3: Arqueo Z & Cuadre al Centavo */}
-          <div className="p-7 rounded-3xl bg-white dark:bg-[#121319] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-3 relative overflow-hidden group hover:border-apple-blue/50 transition-all">
-            <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 text-cyan-500 flex items-center justify-center">
-              <BarChart3 className="w-6 h-6" />
+          {/* Card 3: Impresión Bluetooth en 3 segundos */}
+          <div className="p-7 rounded-3xl bg-white dark:bg-[#121319] border border-neutral-200/80 dark:border-neutral-800 shadow-apple flex flex-col justify-between relative overflow-hidden group hover:border-apple-blue/50 hover:-translate-y-1 transition-all duration-300">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="w-12 h-12 rounded-2xl bg-apple-blue/10 text-apple-blue flex items-center justify-center shadow-inner">
+                  <Smartphone className="w-6 h-6" />
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-apple-blue/10 text-apple-blue text-[10px] font-mono font-extrabold uppercase tracking-wider border border-apple-blue/20">
+                  &lt; 3 Seg / Ticket
+                </span>
+              </div>
+              <h3 className="text-lg font-extrabold text-neutral-900 dark:text-white group-hover:text-apple-blue transition-colors">
+                Facturación Térmica Bluetooth Pro
+              </h3>
+              <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                Despacha filas en tiempo récord. Imprime facturas de 58mm y 80mm desde celular, tablet o PC sin cables ni licencias extra, con tu logotipo comercial de alto contraste, RUC, IVA y código de barras.
+              </p>
             </div>
-            <h3 className="text-lg font-bold text-neutral-900 dark:text-white">
-              Caja Cuadrada al Centavo
-            </h3>
-            <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
-              Arqueos de turno con denominaciones rápidas en Córdobas y Dólares. Conoce al instante si hay sobrante o faltante y calcula tu ganancia neta real basada en precio de compra vs venta.
-            </p>
+            <div className="pt-5 mt-5 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between text-[11px] font-semibold text-apple-blue">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Plug & Play sin drivers
+              </span>
+              <span className="font-mono">58mm / 80mm</span>
+            </div>
           </div>
 
+          {/* Card 4: Kardex Multi-Unidad & Vencimientos */}
+          <div className="p-7 rounded-3xl bg-white dark:bg-[#121319] border border-neutral-200/80 dark:border-neutral-800 shadow-apple flex flex-col justify-between relative overflow-hidden group hover:border-amber-500/50 hover:-translate-y-1 transition-all duration-300">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center shadow-inner">
+                  <Package className="w-6 h-6" />
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-mono font-extrabold uppercase tracking-wider border border-amber-500/20">
+                  Anti-Merma FEFO
+                </span>
+              </div>
+              <h3 className="text-lg font-extrabold text-neutral-900 dark:text-white group-hover:text-amber-500 transition-colors">
+                Kardex Multi-Unidad & Lotes Activos
+              </h3>
+              <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                Compra por quintal o caja y vende por libra, vara, metro o blíster sin descuadrar existencias. Nuestro semáforo inteligente te alerta 30 días antes de que un lote caduque para que lo liquides a tiempo.
+              </p>
+            </div>
+            <div className="pt-5 mt-5 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Trazabilidad por Lote
+              </span>
+              <span className="font-mono">-85% Mermas</span>
+            </div>
+          </div>
+
+          {/* Card 5: Especialización Clínica, Dental y Veterinaria */}
+          <div className="p-7 rounded-3xl bg-white dark:bg-[#121319] border border-neutral-200/80 dark:border-neutral-800 shadow-apple flex flex-col justify-between relative overflow-hidden group hover:border-purple-500/50 hover:-translate-y-1 transition-all duration-300">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-500 flex items-center justify-center shadow-inner">
+                  <Stethoscope className="w-6 h-6" />
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-mono font-extrabold uppercase tracking-wider border border-purple-500/20">
+                  Salud & Servicios
+                </span>
+              </div>
+              <h3 className="text-lg font-extrabold text-neutral-900 dark:text-white group-hover:text-purple-500 transition-colors">
+                Expedientes Clínicos que Cobran Solos
+              </h3>
+              <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                Odontograma interactivo FDI de 32 piezas y fichas veterinarias con carnet de vacunación. Envía la consulta e insumos utilizados directo al POS en un clic para que ningún tratamiento quede sin facturar.
+              </p>
+            </div>
+            <div className="pt-5 mt-5 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between text-[11px] font-semibold text-purple-600 dark:text-purple-400">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Consulta → Caja en 1 Clic
+              </span>
+              <span className="font-mono">FDI 32 Piezas</span>
+            </div>
+          </div>
+
+          {/* Card 6: Producción, Rutas GPS y Roles Blindados */}
+          <div className="p-7 rounded-3xl bg-white dark:bg-[#121319] border border-neutral-200/80 dark:border-neutral-800 shadow-apple flex flex-col justify-between relative overflow-hidden group hover:border-indigo-500/50 hover:-translate-y-1 transition-all duration-300">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center shadow-inner">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-mono font-extrabold uppercase tracking-wider border border-indigo-500/20">
+                  Control 360°
+                </span>
+              </div>
+              <h3 className="text-lg font-extrabold text-neutral-900 dark:text-white group-hover:text-indigo-500 transition-colors">
+                Rutas GPS, Producción & Roles por PIN
+              </h3>
+              <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                Delega sin miedo: asigna accesos restringidos para Cajeros y Bodegueros mientras supervisas órdenes de fabricación, recetas de costos, rutas de reparto con mapa en vivo y planilla quincenal de RR.HH.
+              </p>
+            </div>
+            <div className="pt-5 mt-5 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Permisos por Empleado
+              </span>
+              <span className="font-mono">Auditoría Total</span>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Banner de Retorno de Inversión (Cierre de Venta) */}
+        <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-neutral-900 via-[#111522] to-neutral-900 text-white border border-neutral-800 shadow-2xl flex flex-col lg:flex-row items-center justify-between gap-6">
+          <div className="space-y-2 text-center lg:text-left max-w-2xl">
+            <div className="inline-flex items-center gap-2 text-emerald-400 text-xs font-mono font-bold uppercase tracking-wider">
+              <Sparkles className="w-4 h-4" />
+              <span>Impacto Comercial Inmediato</span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black tracking-tight">
+              Núcleo ERP se paga solo desde la primera semana de uso
+            </h3>
+            <p className="text-xs sm:text-sm text-neutral-300 leading-relaxed">
+              Con solo evitar 2 productos vencidos al mes y eliminar errores de vuelto en caja, recuperas el 100% de tu inversión y ahorras más de 12 horas semanales en cuadres manuales.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0 w-full lg:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById("demo-environments");
+                el?.scrollIntoView({ behavior: "smooth" });
+              }}
+              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs sm:text-sm font-extrabold shadow-lg shadow-apple-blue/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>Entrar a un Negocio Demo Ahora</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
       </section>
@@ -931,7 +1084,7 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
       {/* ======================================================== */}
       {/* 5. SECCIÓN DE ACCESO RÁPIDO & DEMOS                      */}
       {/* ======================================================== */}
-      <section className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12">
+      <section id="demo-environments" className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12">
         
         <div className="p-8 sm:p-10 rounded-3xl bg-gradient-to-br from-white via-neutral-50 to-neutral-100 dark:from-[#13141b] dark:via-[#111218] dark:to-[#0d0e13] border border-neutral-200/90 dark:border-neutral-800/90 shadow-2xl space-y-6 text-center">
           
@@ -944,29 +1097,9 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
             </p>
           </div>
 
-          {/* Tarjetas de Acceso 1-Clic */}
+          {/* Tarjetas de Acceso 1-Clic (Exclusivamente perfiles comerciales y de operación) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-left">
             
-            <button
-              type="button"
-              onClick={() => quickLogin("admin", "admin123")}
-              className="p-4 rounded-2xl bg-neutral-900 hover:bg-black text-white border border-neutral-800 transition-all hover:scale-[1.02] cursor-pointer shadow-md group space-y-1.5"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-apple-green/20 text-apple-green font-bold">
-                  ROOT GOD MODE
-                </span>
-                <span className="text-[11px] font-mono text-neutral-400">admin123</span>
-              </div>
-              <div className="font-bold text-xs flex items-center gap-1.5 text-white">
-                <TerminalIcon className="w-4 h-4 text-apple-green" />
-                <span>SuperAdmin Terminal</span>
-              </div>
-              <div className="text-[11px] text-neutral-400">
-                Creación central de negocios, gestión de claves y switches de módulos.
-              </div>
-            </button>
-
             <button
               type="button"
               onClick={() => quickLogin("propietario", "1234", "tenant-ferreteria-1")}
@@ -1067,6 +1200,26 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
               </div>
             </button>
 
+            <button
+              type="button"
+              onClick={() => quickLogin("propietario", "1234", "tenant-ferreteria-1")}
+              className="p-4 rounded-2xl bg-white dark:bg-[#181922] hover:bg-neutral-50 dark:hover:bg-[#1e1f2b] border border-neutral-200 dark:border-neutral-800 transition-all hover:scale-[1.02] cursor-pointer shadow-sm group space-y-1.5"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold">
+                  LOGÍSTICA, RR.HH. & PLANTA
+                </span>
+                <span className="text-[11px] font-mono text-neutral-400">1234</span>
+              </div>
+              <div className="font-bold text-xs flex items-center gap-1.5 text-neutral-900 dark:text-white">
+                <Layers className="w-4 h-4 text-indigo-500" />
+                <span>Suite Completa (10 Módulos)</span>
+              </div>
+              <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                Rutas de reparto GPS, órdenes de producción, recetas y nómina.
+              </div>
+            </button>
+
           </div>
 
           <div className="pt-2">
@@ -1147,7 +1300,7 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
                     required
                     value={usernameInput}
                     onChange={(e) => setUsernameInput(e.target.value)}
-                    placeholder="admin, propietario, clinica, caja1..."
+                    placeholder="propietario, clinica, veterinaria, caja1..."
                     className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-apple-blue"
                   />
                 </div>
@@ -1194,10 +1347,10 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
 
               <div className="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 text-[11px] text-neutral-500 space-y-1">
                 <span className="font-bold block text-neutral-700 dark:text-neutral-300">
-                  Credenciales de Demostración:
+                  Credenciales de Demostración Comercial:
                 </span>
-                <p>• SuperAdmin: <strong>admin</strong> / <strong>admin123</strong></p>
                 <p>• Dueños: <strong>propietario</strong>, <strong>clinica</strong> o <strong>veterinaria</strong> / <strong>1234</strong></p>
+                <p>• Operativos: <strong>caja1</strong> (PIN <strong>0000</strong>) o <strong>bodega1</strong> (PIN <strong>1111</strong>)</p>
               </div>
 
             </form>
