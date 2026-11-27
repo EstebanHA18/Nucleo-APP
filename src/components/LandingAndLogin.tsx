@@ -130,15 +130,104 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
   };
 
   // Estados del Showcase Interactivo del Producto
-  const [activeTab, setActiveTab] = useState<"pos" | "spatial" | "inventory" | "clinical" | "vet">("pos");
+  const [activeTab, setActiveTab] = useState<"pos" | "spatial" | "inventory" | "clinical" | "vet" | "routes">("pos");
 
   // Estados del Simulador de POS en vivo dentro de la Landing
   const [simCart, setSimCart] = useState<Array<{ name: string; price: number; qty: number; unit: string }>>([
     { name: "Varilla Corrugada 3/8\"", price: 135, qty: 6, unit: "vara" },
     { name: "Cemento Holcim 42.5kg", price: 345, qty: 2, unit: "saco" },
   ]);
-  const [simTendered, setSimTendered] = useState<number>(1500);
+  const [simTendered, setSimTendered] = useState<number>(2000);
+  const [simPaymentMethod, setSimPaymentMethod] = useState<"cash" | "card" | "transfer">("cash");
+  const [simPrinterType, setSimPrinterType] = useState<"thermal" | "normal_a4">("thermal");
   const [simInvoicePrinted, setSimInvoicePrinted] = useState(false);
+
+  // Estados interactivos para Tab 2: Constelación Espacial
+  const [simSelectedNode, setSimSelectedNode] = useState<string>("pos");
+  const [simPulseCount, setSimPulseCount] = useState<number>(50);
+  const [simTurnRevenue, setSimTurnRevenue] = useState<number>(5433);
+
+  // Estados interactivos para Tab 3: Inventario Multi-Unidad
+  const [simInventoryFilter, setSimInventoryFilter] = useState<"all" | "batches" | "expiring">("all");
+  const [simProducts, setSimProducts] = useState([
+    { id: "sp-1", name: "Varilla Corrugada 3/8\" (9.5mm)", unit: "vara", batch: "LOTE-2026-01", status: "valid", statusLabel: "● Vigente (420d)", cost: 95, price: 135, stock: 148, hasBatch: true },
+    { id: "sp-2", name: "Cemento Holcim Fuerte 42.5kg", unit: "saco", batch: "LOT-HOL-09", status: "valid", statusLabel: "● Vigente (180d)", cost: 280, price: 345, stock: 84, hasBatch: true },
+    { id: "sp-3", name: "Fertilizante Urea Granulada 46%", unit: "quintal", batch: "LOT-UREA-26", status: "valid", statusLabel: "● Vigente (508d)", cost: 750, price: 980, stock: 45, hasBatch: true },
+    { id: "sp-4", name: "Herbicida Glifosato 48% SL", unit: "litro", batch: "LOT-AGRO-88", status: "expiring", statusLabel: "⚠️ Vence en 18 días", cost: 190, price: 260, stock: 16, hasBatch: true },
+    { id: "sp-5", name: "Cable Eléctrico THHN #12 AWG", unit: "metro", batch: "ESTÁNDAR", status: "valid", statusLabel: "Sin vencimiento", cost: 19, price: 28, stock: 320, hasBatch: false },
+  ]);
+
+  // Estados interactivos para Tab 4: Odontograma Dental FDI (32 piezas)
+  const [simDentalBrush, setSimDentalBrush] = useState<"caries" | "restaurado" | "endodoncia" | "corona" | "sano">("caries");
+  const [simTeethState, setSimTeethState] = useState<Record<number, "caries" | "restaurado" | "endodoncia" | "corona" | "sano">>({
+    16: "caries",
+    24: "caries",
+    11: "restaurado",
+    21: "restaurado",
+    36: "endodoncia",
+    46: "corona",
+  });
+
+  // Estados interactivos para Tab 5: Veterinaria
+  const [simVetPatientIdx, setSimVetPatientIdx] = useState<number>(0);
+  const [simVetPatients, setSimVetPatients] = useState([
+    {
+      name: "Rocky",
+      species: "Golden Retriever • Canino",
+      weight: "29.5 Kg",
+      temp: "38.4 °C",
+      bpm: "88 lpm",
+      owner: "Elena Castillo",
+      phone: "+505 8890-1234",
+      vaccine: "Antirrábica Nobivac",
+      vaccineApplied: true,
+      deworming: "Simparica Trio Masticable",
+      dewormingApplied: false,
+      consultPrice: 550,
+      medName: "Simparica Trio Tableta 20-40kg",
+      medPrice: 420,
+    },
+    {
+      name: "Michi",
+      species: "Persa Himalayo • Felino",
+      weight: "4.2 Kg",
+      temp: "38.6 °C",
+      bpm: "130 lpm",
+      owner: "Roberto Somarriba",
+      phone: "+505 8712-9044",
+      vaccine: "Triple Felina (FVRCP)",
+      vaccineApplied: true,
+      deworming: "Pipeta Broadline Spot-On",
+      dewormingApplied: true,
+      consultPrice: 450,
+      medName: "Pipeta Felina Broadline",
+      medPrice: 380,
+    },
+    {
+      name: "Tormenta",
+      species: "Cuarto de Milla • Equino",
+      weight: "430 Kg",
+      temp: "37.8 °C",
+      bpm: "40 lpm",
+      owner: "Hacienda Santa Rosa",
+      phone: "+505 8411-3300",
+      vaccine: "Encefalomielitis + Tétano",
+      vaccineApplied: false,
+      deworming: "Ivermectina Pasta Equina",
+      dewormingApplied: true,
+      consultPrice: 1200,
+      medName: "Complejo Vitamínico B12 100ml",
+      medPrice: 680,
+    },
+  ]);
+
+  // Estados interactivos para Tab 6: Rutas GPS & Producción
+  const [simActivePinIdx, setSimActivePinIdx] = useState<number>(0);
+  const [simRoutePins, setSimRoutePins] = useState([
+    { id: 1, name: "Ferretería San José (El Viejo)", contact: "Don Mauricio", total: 4850, status: "visitado_con_pedido", itemsLabel: "20 Varillas 3/8\" + 6 Sacos Cemento" },
+    { id: 2, name: "Constructora del Puerto (Corinto)", contact: "Ing. Valeria", total: 9200, status: "entregado", itemsLabel: "25 Sacos Cemento Holcim + 100m Cable #12" },
+    { id: 3, name: "Agroservicio Las Palmeras (Chichigalpa)", contact: "Lic. Ernesto", total: 3920, status: "pendiente", itemsLabel: "4 Quintales Urea 46%" },
+  ]);
 
   // Reloj en tiempo real para Centroamérica (UTC-6 estándar)
   useEffect(() => {
@@ -474,10 +563,10 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
           <div className="p-3.5 sm:p-4 rounded-2xl bg-white/70 dark:bg-[#111218]/70 border border-neutral-200/80 dark:border-neutral-800/80 backdrop-blur-md shadow-apple">
             <div className="flex items-center gap-2 text-cyan-500 mb-1">
               <Printer className="w-4 h-4" />
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider">Hardware</span>
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider">Impresión Total</span>
             </div>
-            <div className="text-xl sm:text-2xl font-black text-neutral-900 dark:text-white font-mono">Bluetooth</div>
-            <div className="text-[11px] text-neutral-500 dark:text-neutral-400">58mm y 80mm con logo</div>
+            <div className="text-xl sm:text-2xl font-black text-neutral-900 dark:text-white font-mono">Universal</div>
+            <div className="text-[11px] text-neutral-500 dark:text-neutral-400">Impresoras normales, USB, BT y PDF</div>
           </div>
 
           <div className="p-3.5 sm:p-4 rounded-2xl bg-white/70 dark:bg-[#111218]/70 border border-neutral-200/80 dark:border-neutral-800/80 backdrop-blur-md shadow-apple">
@@ -579,33 +668,63 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
             <span>Veterinaria</span>
           </button>
 
+          <button
+            type="button"
+            onClick={() => setActiveTab("routes")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === "routes"
+                ? "bg-apple-blue text-white shadow-md shadow-apple-blue/30"
+                : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            }`}
+          >
+            <MapPin className="w-3.5 h-3.5" />
+            <span>Rutas GPS & Reparto</span>
+          </button>
+
         </div>
 
         {/* Marco Tipo iPad / Pantalla de Cristal con el Módulo Activo */}
         <div className="rounded-3xl bg-white dark:bg-[#121318] border border-neutral-200/90 dark:border-neutral-800/90 shadow-2xl p-4 sm:p-7 transition-all">
           
-          {/* TAB 1: SIMULADOR DE POS INTERACTIVO */}
+          {/* TAB 1: SIMULADOR DE POS INTERACTIVO (TÉRMICA + IMPRESORA NORMAL CARTA A4) */}
           {activeTab === "pos" && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start animate-fadeIn">
               
               {/* Catálogo Interactivo (Haz clic para agregar) */}
               <div className="lg:col-span-7 space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                     <span className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
-                      Mostrador de Ventas • Pulsa para añadir al ticket:
+                      Mostrador de Ventas • Pulsa cualquier artículo para facturar:
                     </span>
                   </div>
-                  <span className="text-[11px] font-mono text-apple-blue font-semibold">TC: 36.62 C$/USD</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-mono text-apple-blue font-semibold">TC: 36.62 C$/USD</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSimCart([
+                          { name: "Varilla Corrugada 3/8\"", price: 135, qty: 6, unit: "vara" },
+                          { name: "Cemento Holcim 42.5kg", price: 345, qty: 2, unit: "saco" },
+                        ]);
+                        setSimTendered(2000);
+                        setSimInvoicePrinted(false);
+                      }}
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-500 hover:text-neutral-900 dark:hover:text-white flex items-center gap-1 cursor-pointer"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Reiniciar</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {[
-                    { name: "Varilla Corrugada 3/8\"", price: 135, unit: "vara", stock: "18 varas", cat: "Ferretería" },
-                    { name: "Cemento Holcim 42.5kg", price: 345, unit: "saco", stock: "22 sacos", cat: "Materiales" },
+                    { name: "Varilla Corrugada 3/8\"", price: 135, unit: "vara", stock: "148 varas", cat: "Ferretería" },
+                    { name: "Cemento Holcim 42.5kg", price: 345, unit: "saco", stock: "84 sacos", cat: "Materiales" },
                     { name: "Tubo PVC SDR-26 1/2\"", price: 125, unit: "tubo", stock: "45 tubos", cat: "Fontanería" },
-                    { name: "Cable Eléctrico THHN #12", price: 28, unit: "metro", stock: "180 mtrs", cat: "Electricidad" },
+                    { name: "Cable Eléctrico THHN #12", price: 28, unit: "metro", stock: "320 mtrs", cat: "Electricidad" },
                     { name: "Amoxicilina 500mg Caps", price: 85, unit: "caja", stock: "40 cajas", cat: "Farmacia" },
                     { name: "Limpieza Dental Profilaxis", price: 650, unit: "servicio", stock: "Disponible", cat: "Clínica" },
                   ].map((p, idx) => (
@@ -631,22 +750,46 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
                   ))}
                 </div>
 
-                {/* Banner de denominaciones rápidas de efectivo */}
-                <div className="p-3 rounded-2xl bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200/80 dark:border-neutral-700/60 space-y-2">
-                  <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 block">
-                    Billetes rápidos para pago (Centroamérica NIO):
-                  </span>
+                {/* Selector de Método de Pago y Billetes Rápidos */}
+                <div className="p-3.5 rounded-2xl bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200/80 dark:border-neutral-700/60 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300">
+                      Forma de Pago & Billetes Rápidos:
+                    </span>
+                    <div className="flex items-center gap-1 p-0.5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-[11px] font-bold">
+                      {(["cash", "card", "transfer"] as const).map((pm) => (
+                        <button
+                          key={pm}
+                          type="button"
+                          onClick={() => {
+                            setSimPaymentMethod(pm);
+                            if (pm !== "cash") setSimTendered(simTotal);
+                            setSimInvoicePrinted(false);
+                          }}
+                          className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                            simPaymentMethod === pm
+                              ? "bg-apple-blue text-white"
+                              : "text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+                          }`}
+                        >
+                          {pm === "cash" ? "💵 Efectivo" : pm === "card" ? "💳 Tarjeta POS" : "🏦 Transferencia"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="flex flex-wrap gap-1.5">
-                    {[500, 1000, 1500, 2000].map((bill) => (
+                    {[500, 1000, 1500, 2000, 5000].map((bill) => (
                       <button
                         key={bill}
                         type="button"
                         onClick={() => {
+                          setSimPaymentMethod("cash");
                           setSimTendered(bill);
                           setSimInvoicePrinted(false);
                         }}
                         className={`px-3 py-1 rounded-xl text-xs font-mono font-bold border transition-all cursor-pointer ${
-                          simTendered === bill
+                          simTendered === bill && simPaymentMethod === "cash"
                             ? "bg-apple-blue text-white border-apple-blue shadow-xs"
                             : "bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:border-apple-blue"
                         }`}
@@ -656,39 +799,117 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
                     ))}
                     <button
                       type="button"
-                      onClick={() => setSimTendered(simTotal)}
+                      onClick={() => {
+                        setSimTendered(simTotal);
+                        setSimInvoicePrinted(false);
+                      }}
                       className="px-3 py-1 rounded-xl text-xs font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all cursor-pointer"
                     >
-                      Monto Exacto
+                      Monto Exacto (C$ {simTotal.toFixed(2)})
+                    </button>
+                  </div>
+                </div>
+
+                {/* Selector de Tipo de Impresora: Térmica (USB/Bluetooth) vs Impresora Normal (Láser/Tinta Carta A4) */}
+                <div className="p-3.5 rounded-2xl bg-apple-blue/5 dark:bg-apple-blue/10 border border-apple-blue/20 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Printer className="w-4 h-4 text-apple-blue" />
+                    <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                      Tipo de Impresora a Utilizar:
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSimPrinterType("thermal");
+                        setSimInvoicePrinted(false);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                        simPrinterType === "thermal"
+                          ? "bg-apple-blue text-white shadow-xs"
+                          : "bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700"
+                      }`}
+                    >
+                      🧾 Térmica 58/80mm (USB o Bluetooth)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSimPrinterType("normal_a4");
+                        setSimInvoicePrinted(false);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                        simPrinterType === "normal_a4"
+                          ? "bg-apple-blue text-white shadow-xs"
+                          : "bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700"
+                      }`}
+                    >
+                      🖨️ Impresora Normal (Láser / Tinta Carta A4)
                     </button>
                   </div>
                 </div>
 
               </div>
 
-              {/* Ticket en Vivo Simulado */}
-              <div className="lg:col-span-5 p-5 rounded-3xl bg-neutral-50 dark:bg-[#16171f] border border-neutral-200/90 dark:border-neutral-800/90 font-mono text-xs space-y-3 shadow-inner">
+              {/* Vista Previa de Factura en Vivo (Cambia entre Ticket Térmico y Hoja Carta de Impresora Normal) */}
+              <div className={`lg:col-span-5 p-5 rounded-3xl transition-all space-y-3 shadow-inner ${
+                simPrinterType === "normal_a4"
+                  ? "bg-white dark:bg-[#191b24] border-2 border-apple-blue/40 font-sans text-xs"
+                  : "bg-neutral-50 dark:bg-[#16171f] border border-neutral-200/90 dark:border-neutral-800/90 font-mono text-xs"
+              }`}>
                 
-                <div className="text-center pb-2 border-b border-dashed border-neutral-300 dark:border-neutral-700 space-y-0.5">
-                  <p className="font-extrabold text-sm uppercase text-neutral-900 dark:text-white">FERRETERÍA EL TORNILLO DORADO</p>
-                  <p className="text-[10px] text-neutral-500">RUC: J031000049102 • Chinandega, NI</p>
-                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">FACTURA DE CONTADO #FAC-004812</p>
+                <div className="flex items-center justify-between pb-2 border-b border-dashed border-neutral-300 dark:border-neutral-700">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-apple-blue/10 text-apple-blue font-bold">
+                    {simPrinterType === "normal_a4" ? "FORMATO HOJA CARTA / A4 (LÁSER / TINTA)" : "FORMATO TICKET TÉRMICO (80MM / 58MM)"}
+                  </span>
+                  <span className="text-[10px] font-mono text-emerald-500 font-bold">#FAC-004812</span>
                 </div>
 
-                {/* Items del Carrito */}
-                <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                <div className="text-center pb-2 border-b border-dashed border-neutral-300 dark:border-neutral-700 space-y-0.5">
+                  <p className="font-extrabold text-sm uppercase text-neutral-900 dark:text-white">FERRETERÍA EL TORNILLO DORADO</p>
+                  <p className="text-[10px] text-neutral-500">RUC: J031000049102 • Chinandega, NI • Tel: 2341-2090</p>
+                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                    FACTURA {simPaymentMethod === "cash" ? "EN EFECTIVO" : simPaymentMethod === "card" ? "CON TARJETA POS" : "POR TRANSFERENCIA"}
+                  </p>
+                </div>
+
+                {/* Items del Carrito con botones +/- */}
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                   {simCart.map((it, i) => (
-                    <div key={i} className="flex justify-between items-center text-[11px] pb-1 border-b border-neutral-200/50 dark:border-neutral-800/50">
-                      <div>
-                        <span className="font-semibold">{it.qty}x {it.name}</span>
-                        <span className="text-[9px] text-neutral-400 block">({it.qty} {it.unit} @ C$ {it.price})</span>
+                    <div key={i} className="flex justify-between items-center text-[11px] pb-1.5 border-b border-neutral-200/50 dark:border-neutral-800/50">
+                      <div className="min-w-0 pr-2">
+                        <span className="font-semibold block truncate">{it.name}</span>
+                        <span className="text-[9px] text-neutral-400">({it.qty} {it.unit} @ C$ {it.price.toFixed(2)})</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold">C$ {(it.qty * it.price).toFixed(2)}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSimInvoicePrinted(false);
+                            setSimCart((prev) =>
+                              prev
+                                .map((row) => (row.name === it.name ? { ...row, qty: row.qty - 1 } : row))
+                                .filter((row) => row.qty > 0)
+                            );
+                          }}
+                          className="w-5 h-5 rounded bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 text-xs font-bold flex items-center justify-center cursor-pointer"
+                        >
+                          -
+                        </button>
+                        <span className="font-bold font-mono w-4 text-center">{it.qty}</span>
+                        <button
+                          type="button"
+                          onClick={() => addSimItem(it.name, it.price, it.unit)}
+                          className="w-5 h-5 rounded bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 text-xs font-bold flex items-center justify-center cursor-pointer"
+                        >
+                          +
+                        </button>
+                        <span className="font-bold font-mono w-20 text-right">C$ {(it.qty * it.price).toFixed(2)}</span>
                         <button
                           type="button"
                           onClick={() => removeSimItem(it.name)}
-                          className="text-red-400 hover:text-red-600 cursor-pointer text-xs"
+                          className="text-red-400 hover:text-red-600 cursor-pointer text-xs ml-1"
                           title="Eliminar"
                         >
                           ×
@@ -704,7 +925,7 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
                 </div>
 
                 {/* Desglose de Totales y Vuelto */}
-                <div className="pt-2 border-t border-dashed border-neutral-300 dark:border-neutral-700 space-y-1 text-xs">
+                <div className="pt-2 border-t border-dashed border-neutral-300 dark:border-neutral-700 space-y-1 text-xs font-mono">
                   <div className="flex justify-between text-neutral-500">
                     <span>Subtotal:</span>
                     <span>C$ {simSubtotal.toFixed(2)}</span>
@@ -724,17 +945,24 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
 
                   <div className="pt-2 mt-1 border-t border-dashed border-neutral-300 dark:border-neutral-700 space-y-1">
                     <div className="flex justify-between">
-                      <span className="text-neutral-500">Efectivo Pagado:</span>
-                      <span className="font-bold">C$ {simTendered.toFixed(2)}</span>
+                      <span className="text-neutral-500">Monto Recibido:</span>
+                      <span className="font-bold">C$ {(simPaymentMethod === "cash" ? simTendered : simTotal).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-extrabold text-sm">
                       <span>VUELTO ENTREGADO:</span>
-                      <span>C$ {simChange.toFixed(2)}</span>
+                      <span>C$ {(simPaymentMethod === "cash" ? simChange : 0).toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Botón de Emitir / Impresión Bluetooth */}
+                {simPrinterType === "normal_a4" && (
+                  <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 grid grid-cols-2 gap-4 text-[10px] text-center text-neutral-400">
+                    <div className="pt-3 border-t border-neutral-300 dark:border-neutral-700">Entregado por (Firma y Sello)</div>
+                    <div className="pt-3 border-t border-neutral-300 dark:border-neutral-700">Recibido Conforme Cliente</div>
+                  </div>
+                )}
+
+                {/* Botón de Emitir / Impresión Universal */}
                 <button
                   type="button"
                   onClick={() => setSimInvoicePrinted(true)}
@@ -742,7 +970,15 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
                   className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>{simInvoicePrinted ? "✓ ¡Ticket Impreso por Bluetooth!" : "Simular Cobro e Impresión Bluetooth"}</span>
+                  <span>
+                    {simInvoicePrinted
+                      ? simPrinterType === "normal_a4"
+                        ? "✓ ¡Factura Carta A4 Enviada a Impresora Normal / PDF!"
+                        : "✓ ¡Ticket Enviado a Impresora Térmica (USB / Bluetooth)!"
+                      : simPrinterType === "normal_a4"
+                      ? "Simular Impresión en Impresora Normal (Carta / PDF)"
+                      : "Simular Impresión en Térmica (USB / Bluetooth)"}
+                  </span>
                 </button>
 
               </div>
@@ -752,187 +988,558 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
 
           {/* TAB 2: CONSTELACIÓN ESPACIAL INTERACTIVA */}
           {activeTab === "spatial" && (
-            <div className="py-6 space-y-4 animate-fadeIn">
-              <div className="text-center space-y-1">
-                <h3 className="text-base font-bold text-neutral-900 dark:text-white">
-                  Red Espacial de Conectividad Modular
-                </h3>
-                <p className="text-xs text-neutral-500 max-w-xl mx-auto">
-                  Toda tu empresa mapeada como una constelación viva: cada venta en caja sincroniza automáticamente el Kardex de inventario, actualiza la caja del turno y concilia con clientes.
-                </p>
+            <div className="py-4 space-y-5 animate-fadeIn">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-neutral-200 dark:border-neutral-800">
+                <div>
+                  <h3 className="text-base font-extrabold text-neutral-900 dark:text-white">
+                    Red Espacial de Conectividad Modular en Tiempo Real
+                  </h3>
+                  <p className="text-xs text-neutral-500">
+                    Haz clic en cualquier nodo para inspeccionar su estado o simula una venta para ver cómo se actualizan todos los departamentos al instante.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSimPulseCount((c) => c + 1);
+                    setSimTurnRevenue((r) => r + 480);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-extrabold shadow-md shadow-apple-blue/25 flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>⚡ Simular Venta en Red (+C$ 480.00)</span>
+                </button>
               </div>
 
-              <div className="p-8 rounded-3xl bg-neutral-900 dark:bg-black text-white relative overflow-hidden border border-neutral-800">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 relative z-10 text-center">
-                  
-                  <div className="p-4 rounded-2xl bg-neutral-800/80 border border-neutral-700/60 space-y-1">
-                    <Package className="w-5 h-5 text-indigo-400 mx-auto" />
-                    <div className="text-xs font-bold">Inventario & Kardex</div>
-                    <div className="text-[11px] text-neutral-400 font-mono">312 unidades • 6 SKUs</div>
-                    <span className="inline-block text-[10px] text-emerald-400">● Conectado en tiempo real</span>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-apple-blue/20 border border-apple-blue text-white space-y-1 shadow-lg shadow-apple-blue/20">
-                    <Receipt className="w-6 h-6 text-apple-blue mx-auto" />
-                    <div className="text-sm font-black">Ventas & POS Core</div>
-                    <div className="text-xs font-mono font-bold text-cyan-300">C$ 5,433.00 (Turno)</div>
-                    <span className="inline-block text-[10px] text-emerald-400">● 50 tickets procesados</span>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-neutral-800/80 border border-neutral-700/60 space-y-1">
-                    <TrendingUp className="w-5 h-5 text-emerald-400 mx-auto" />
-                    <div className="text-xs font-bold">Finanzas & Caja</div>
-                    <div className="text-[11px] text-neutral-400 font-mono">C$ 148,920.00 acumulado</div>
-                    <span className="inline-block text-[10px] text-emerald-400">● Conciliado al centavo</span>
-                  </div>
-
+              <div className="p-6 rounded-3xl bg-neutral-900 dark:bg-black text-white relative overflow-hidden border border-neutral-800 space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 relative z-10">
+                  {[
+                    {
+                      id: "pos",
+                      title: "Ventas & POS Core",
+                      metric: `C$ ${simTurnRevenue.toLocaleString("es-NI")}.00 (Turno)`,
+                      sub: `${simPulseCount} facturas emitidas hoy`,
+                      detail: "Conectado a impresoras térmicas USB/Bluetooth e impresoras normales Carta A4.",
+                      color: "border-apple-blue bg-apple-blue/20",
+                    },
+                    {
+                      id: "inventory",
+                      title: "Inventario & Kardex FEFO",
+                      metric: `${Math.max(100, 613 - simPulseCount)} uds • 16 SKUs`,
+                      sub: "Descuento automático multi-unidad",
+                      detail: "Control de varas, sacos, litros y lotes con alerta temprana de caducidad a 30 días.",
+                      color: "border-purple-500/50 bg-neutral-800/90",
+                    },
+                    {
+                      id: "finance",
+                      title: "Finanzas & Arqueo Z",
+                      metric: `C$ ${(148920 + simTurnRevenue).toLocaleString("es-NI")}.00`,
+                      sub: "Gaveta cuadrada al centavo (C$ y USD)",
+                      detail: "Cálculo instantáneo de utilidad neta real descontando el costo de cada lote.",
+                      color: "border-emerald-500/50 bg-neutral-800/90",
+                    },
+                    {
+                      id: "clinical",
+                      title: "Salud, Dental & Veterinaria",
+                      metric: "14 Consultas Hoy",
+                      sub: "Odontograma FDI 32 piezas activo",
+                      detail: "Envía procedimientos médicos, vacunas y fármacos directo a la caja en 1 clic.",
+                      color: "border-cyan-500/50 bg-neutral-800/90",
+                    },
+                    {
+                      id: "routes",
+                      title: "Rutas GPS & Preventa",
+                      metric: "3 Camiones en Ruta",
+                      sub: "Chinandega • El Viejo • Corinto",
+                      detail: "Mapa interactivo con pines GPS, toma de pedidos en sitio y liquidación de conductores.",
+                      color: "border-indigo-500/50 bg-neutral-800/90",
+                    },
+                    {
+                      id: "production",
+                      title: "Producción, Recetas & RR.HH.",
+                      metric: "6 Fórmulas BOM • 8 Empleados",
+                      sub: "Costeo de lotes y planilla INSS",
+                      detail: "Descuenta materia prima automáticamente y genera colillas quincenales imprimibles.",
+                      color: "border-amber-500/50 bg-neutral-800/90",
+                    },
+                  ].map((node) => {
+                    const isSel = simSelectedNode === node.id;
+                    return (
+                      <div
+                        key={node.id}
+                        onClick={() => setSimSelectedNode(node.id)}
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-1.5 ${
+                          isSel
+                            ? "border-apple-blue bg-apple-blue/25 ring-2 ring-apple-blue/40 scale-[1.02]"
+                            : node.color + " hover:border-neutral-500"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-extrabold text-white">{node.title}</span>
+                          <span className="text-[10px] text-emerald-400 font-mono">● Online</span>
+                        </div>
+                        <div className="text-sm font-black font-mono text-cyan-300">{node.metric}</div>
+                        <div className="text-[11px] text-neutral-300">{node.sub}</div>
+                        {isSel && (
+                          <p className="text-[11px] text-neutral-200 pt-1.5 mt-1.5 border-t border-white/15 leading-relaxed">
+                            {node.detail}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
           )}
 
-          {/* TAB 3: INVENTARIO MULTI-UNIDAD */}
+          {/* TAB 3: INVENTARIO MULTI-UNIDAD INTERACTIVO */}
           {activeTab === "inventory" && (
-            <div className="py-4 space-y-3 animate-fadeIn">
-              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-neutral-200 dark:border-neutral-800">
+            <div className="py-4 space-y-4 animate-fadeIn">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-neutral-200 dark:border-neutral-800">
                 <div>
-                  <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
-                    Kardex Multi-Unidad & Trazabilidad de Lotes
+                  <h3 className="text-sm font-extrabold text-neutral-900 dark:text-white">
+                    Kardex Multi-Unidad & Semáforo de Lotes Interactivo
                   </h3>
                   <p className="text-[11px] text-neutral-500">
-                    Vende varas de hierro, sacos de cemento, quintales de abono o metros de manguera con descuento milimétrico.
+                    Prueba ajustar existencias (+10 / -1) o envía cualquier artículo directo al simulador de facturación POS.
                   </p>
                 </div>
-                <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-apple-blue/10 text-apple-blue font-bold">
-                  Stock Total: 312 unidades
-                </span>
+
+                <div className="flex items-center gap-1.5 text-xs">
+                  {[
+                    { id: "all", label: "Todos" },
+                    { id: "batches", label: "Con Lotes" },
+                    { id: "expiring", label: "⚠️ Por Vencer" },
+                  ].map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setSimInventoryFilter(f.id as any)}
+                      className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer ${
+                        simInventoryFilter === f.id
+                          ? "bg-apple-blue text-white"
+                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs font-sans">
                   <thead>
                     <tr className="border-b border-neutral-200 dark:border-neutral-800 text-[10px] text-neutral-400 uppercase font-mono">
-                      <th className="py-2">Producto</th>
-                      <th className="py-2">Unidad</th>
-                      <th className="py-2">Lote & Vencimiento</th>
+                      <th className="py-2">Producto & Unidad</th>
+                      <th className="py-2">Lote & Semáforo FEFO</th>
+                      <th className="py-2 text-center">Stock en Vivo</th>
                       <th className="py-2 text-right">Costo / Venta</th>
-                      <th className="py-2 text-right">Margen Neto</th>
+                      <th className="py-2 text-right">Simular Acción</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                    <tr>
-                      <td className="py-2.5 font-bold">Varilla Corrugada 3/8" (9.5mm)</td>
-                      <td className="py-2.5 text-neutral-500">Vara (6 metros)</td>
-                      <td className="py-2.5 font-mono text-[11px]">LOTE-2026-01 <span className="text-emerald-500">● Vigente</span></td>
-                      <td className="py-2.5 text-right font-mono">C$ 95.00 / C$ 135.00</td>
-                      <td className="py-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">+C$ 40.00 (29.6%)</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2.5 font-bold">Fertilizante Urea Granulada 46%</td>
-                      <td className="py-2.5 text-neutral-500">Saco (50 Kg)</td>
-                      <td className="py-2.5 font-mono text-[11px]">LOT-UREA-2026 <span className="text-emerald-500">● Vigente (508d)</span></td>
-                      <td className="py-2.5 text-right font-mono">C$ 750.00 / C$ 980.00</td>
-                      <td className="py-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">+C$ 230.00 (23.5%)</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2.5 font-bold">Herbicida Glifosato 48% SL</td>
-                      <td className="py-2.5 text-neutral-500">Litro (Envase)</td>
-                      <td className="py-2.5 font-mono text-[11px] text-amber-500">LOT-AGRO-88 <span className="text-amber-500 font-bold">⚠️ Vence en 20 días</span></td>
-                      <td className="py-2.5 text-right font-mono">C$ 190.00 / C$ 260.00</td>
-                      <td className="py-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">+C$ 70.00 (26.9%)</td>
-                    </tr>
+                    {simProducts
+                      .filter((p) =>
+                        simInventoryFilter === "all"
+                          ? true
+                          : simInventoryFilter === "batches"
+                          ? p.hasBatch
+                          : p.status === "expiring"
+                      )
+                      .map((p) => (
+                        <tr key={p.id} className="hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40">
+                          <td className="py-3">
+                            <span className="font-bold text-neutral-900 dark:text-white block">{p.name}</span>
+                            <span className="text-[10px] font-mono text-neutral-400 uppercase">Unidad: {p.unit}</span>
+                          </td>
+                          <td className="py-3 font-mono text-[11px]">
+                            <span className="font-semibold block">{p.batch}</span>
+                            <span className={p.status === "expiring" ? "text-amber-500 font-bold" : "text-emerald-500"}>
+                              {p.statusLabel}
+                            </span>
+                          </td>
+                          <td className="py-3 text-center">
+                            <span className="px-2.5 py-1 rounded-full bg-apple-blue/10 text-apple-blue font-mono font-extrabold">
+                              {p.stock} {p.unit}s
+                            </span>
+                          </td>
+                          <td className="py-3 text-right font-mono">
+                            <span className="text-neutral-400 text-[11px] block">Costo: C$ {p.cost.toFixed(2)}</span>
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                              Venta: C$ {p.price.toFixed(2)} (+{Math.round(((p.price - p.cost) / p.price) * 100)}%)
+                            </span>
+                          </td>
+                          <td className="py-3 text-right">
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSimProducts((prev) =>
+                                    prev.map((row) => (row.id === p.id ? { ...row, stock: Math.max(0, row.stock - 1) } : row))
+                                  )
+                                }
+                                className="px-2 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 font-mono font-bold text-[11px] cursor-pointer"
+                                title="Simular salida -1"
+                              >
+                                -1
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSimProducts((prev) =>
+                                    prev.map((row) => (row.id === p.id ? { ...row, stock: row.stock + 10 } : row))
+                                  )
+                                }
+                                className="px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white font-mono font-bold text-[11px] cursor-pointer"
+                                title="Simular entrada de bodega +10"
+                              >
+                                +10
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  addSimItem(p.name, p.price, p.unit);
+                                  setActiveTab("pos");
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-apple-blue text-white font-bold text-[11px] hover:bg-apple-blue-hover cursor-pointer"
+                              >
+                                → Caja POS
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
             </div>
           )}
 
-          {/* TAB 4: ODONTOGRAMA DENTAL */}
-          {activeTab === "clinical" && (
-            <div className="py-4 space-y-4 animate-fadeIn">
-              <div className="flex items-center justify-between pb-2 border-b border-neutral-200 dark:border-neutral-800">
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
-                    Odontograma FDI & Expediente Clínico Dental
-                  </h3>
-                  <p className="text-[11px] text-neutral-500">
-                    Registro de 32 piezas dentales, historial patológico y traspaso automático de procedimientos a caja.
-                  </p>
-                </div>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-teal-500/10 text-teal-600 dark:text-teal-400 font-bold">
-                  Paciente: Carlos Mendoza (34 años)
-                </span>
-              </div>
+          {/* TAB 4: ODONTOGRAMA DENTAL INTERACTIVO (32 PIEZAS FDI) */}
+          {activeTab === "clinical" && (() => {
+            const cariesCount = Object.values(simTeethState).filter((v) => v === "caries").length;
+            const endoCount = Object.values(simTeethState).filter((v) => v === "endodoncia").length;
+            const coronaCount = Object.values(simTeethState).filter((v) => v === "corona").length;
+            const estimatedDentalBudget = cariesCount * 850 + endoCount * 2400 + coronaCount * 3500;
 
-              {/* Simulación visual de piezas dentales FDI */}
-              <div className="p-4 rounded-2xl bg-neutral-100 dark:bg-neutral-900 space-y-2">
-                <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest block font-bold">
-                  Arcada Superior (Cuadrantes 1 y 2):
-                </span>
-                <div className="flex justify-center flex-wrap gap-1.5 font-mono text-[11px]">
-                  {[18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28].map((t) => (
-                    <div
-                      key={t}
-                      className={`w-9 h-12 rounded-xl flex flex-col items-center justify-center border font-bold ${
-                        t === 16 || t === 24
-                          ? "bg-red-500/15 border-red-500 text-red-600 dark:text-red-400"
-                          : t === 11 || t === 21
-                          ? "bg-blue-500/15 border-blue-500 text-blue-600 dark:text-blue-400"
-                          : "bg-white dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300"
+            const renderToothButton = (t: number) => {
+              const cond = simTeethState[t] || "sano";
+              const styles =
+                cond === "caries"
+                  ? "bg-red-500/15 border-red-500 text-red-600 dark:text-red-400 ring-2 ring-red-500/20"
+                  : cond === "restaurado"
+                  ? "bg-blue-500/15 border-blue-500 text-blue-600 dark:text-blue-400"
+                  : cond === "endodoncia"
+                  ? "bg-purple-500/15 border-purple-500 text-purple-600 dark:text-purple-400"
+                  : cond === "corona"
+                  ? "bg-amber-500/15 border-amber-500 text-amber-600 dark:text-amber-400"
+                  : "bg-white dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-apple-blue";
+
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() =>
+                    setSimTeethState((prev) => ({
+                      ...prev,
+                      [t]: prev[t] === simDentalBrush ? "sano" : simDentalBrush,
+                    }))
+                  }
+                  className={`w-9 h-12 rounded-xl flex flex-col items-center justify-center border font-bold transition-all cursor-pointer hover:scale-105 ${styles}`}
+                  title={`Pieza #${t} (${cond.toUpperCase()}) - Haz clic para aplicar ${simDentalBrush}`}
+                >
+                  <span className="text-[8px] opacity-60">#{t}</span>
+                  <span className="text-xs">{t}</span>
+                </button>
+              );
+            };
+
+            return (
+              <div className="py-4 space-y-4 animate-fadeIn">
+                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-neutral-200 dark:border-neutral-800">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-neutral-900 dark:text-white">
+                      Odontograma FDI Interactivo de 32 Piezas & Presupuesto Automático
+                    </h3>
+                    <p className="text-[11px] text-neutral-500">
+                      Selecciona un diagnóstico abajo y <strong>haz clic sobre cualquier diente</strong> para marcarlo y calcular el presupuesto en vivo.
+                    </p>
+                  </div>
+                  <span className="text-xs px-3 py-1 rounded-full bg-teal-500/10 text-teal-600 dark:text-teal-400 font-bold">
+                    Paciente: Carlos Mendoza (34 años)
+                  </span>
+                </div>
+
+                {/* Selector de Pincel Clínico */}
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-neutral-100 dark:bg-neutral-800/70 border border-neutral-200 dark:border-neutral-700">
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                    <span className="text-[11px] font-bold text-neutral-500 mr-1">Herramienta Clínica:</span>
+                    {[
+                      { id: "caries", label: "🔴 Caries / Resina (C$ 850)", color: "bg-red-500 text-white" },
+                      { id: "endodoncia", label: "🟣 Endodoncia (C$ 2,400)", color: "bg-purple-600 text-white" },
+                      { id: "corona", label: "🟡 Corona Zirconio (C$ 3,500)", color: "bg-amber-500 text-black" },
+                      { id: "restaurado", label: "🔵 Obturado / Tratado", color: "bg-blue-600 text-white" },
+                      { id: "sano", label: "⚪ Marcar Pieza Sana", color: "bg-neutral-700 text-white" },
+                    ].map((b) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => setSimDentalBrush(b.id as any)}
+                        className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                          simDentalBrush === b.id
+                            ? b.color + " shadow-sm scale-105"
+                            : "bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700"
+                        }`}
+                      >
+                        {b.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Arcadas Superior e Inferior (32 piezas interactivas) */}
+                <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/70 dark:border-neutral-800 space-y-3">
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest block font-bold text-center">
+                      Arcada Superior (Cuadrantes 1 y 2 • Haz clic en un diente):
+                    </span>
+                    <div className="flex justify-center flex-wrap gap-1.5 font-mono">
+                      {[18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28].map(renderToothButton)}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 pt-2 border-t border-dashed border-neutral-200 dark:border-neutral-800">
+                    <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest block font-bold text-center">
+                      Arcada Inferior (Cuadrantes 4 y 3 • Haz clic en un diente):
+                    </span>
+                    <div className="flex justify-center flex-wrap gap-1.5 font-mono">
+                      {[48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38].map(renderToothButton)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Barra de Presupuesto Clínico y Envío a Caja POS */}
+                <div className="p-4 rounded-2xl bg-teal-500/10 border border-teal-500/30 flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-xs space-y-0.5">
+                    <span className="font-extrabold text-neutral-900 dark:text-white block">
+                      Presupuesto del Plan Dental ({cariesCount} resinas, {endoCount} endodoncias, {coronaCount} coronas):
+                    </span>
+                    <span className="font-mono text-sm font-black text-teal-600 dark:text-teal-400">
+                      Total Estimado: C$ {estimatedDentalBudget.toLocaleString("es-NI")}.00 (≈ ${(estimatedDentalBudget / 36.62).toFixed(2)} USD)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addSimItem(
+                        `Tratamiento Odontológico (${cariesCount} Resinas / ${endoCount} Endo)`,
+                        Math.max(650, estimatedDentalBudget),
+                        "tratamiento"
+                      );
+                      setActiveTab("pos");
+                    }}
+                    className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-extrabold shadow-md flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Receipt className="w-3.5 h-3.5" />
+                    <span>Enviar Tratamiento a Caja POS →</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* TAB 5: VETERINARIA INTERACTIVA */}
+          {activeTab === "vet" && (() => {
+            const curPet = simVetPatients[simVetPatientIdx] || simVetPatients[0];
+            return (
+              <div className="py-4 space-y-4 animate-fadeIn">
+                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-neutral-200 dark:border-neutral-800">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-neutral-900 dark:text-white">
+                      Expediente Clínico Veterinario, Signos Vitales & Carnet de Vacunación
+                    </h3>
+                    <p className="text-[11px] text-neutral-500">
+                      Cambia de paciente mascota, registra vacunas en vivo o envía la consulta con sus fármacos directo al POS.
+                    </p>
+                  </div>
+
+                  {/* Selector de Mascota */}
+                  <div className="flex items-center gap-1.5">
+                    {simVetPatients.map((pet, idx) => (
+                      <button
+                        key={pet.name}
+                        type="button"
+                        onClick={() => setSimVetPatientIdx(idx)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          simVetPatientIdx === idx
+                            ? "bg-amber-500 text-black shadow-sm"
+                            : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
+                        }`}
+                      >
+                        🐾 {pet.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 font-sans">
+                  <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/60 space-y-1">
+                    <span className="text-[10px] text-neutral-400 font-bold uppercase">Paciente & Tutor</span>
+                    <div className="text-sm font-black text-neutral-900 dark:text-white">{curPet.name}</div>
+                    <div className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold">{curPet.species}</div>
+                    <div className="text-[11px] font-mono text-neutral-500">Tutor: {curPet.owner} ({curPet.phone})</div>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/60 space-y-1">
+                    <span className="text-[10px] text-neutral-400 font-bold uppercase">Signos Vitales en Consulta</span>
+                    <div className="text-xs font-bold font-mono">⚖️ Peso: {curPet.weight}</div>
+                    <div className="text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400">🌡️ Temp: {curPet.temp}</div>
+                    <div className="text-[11px] font-mono text-neutral-500">❤️ FC: {curPet.bpm}</div>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/60 space-y-1.5">
+                    <span className="text-[10px] text-neutral-400 font-bold uppercase">Control de Vacunación</span>
+                    <div className="text-xs font-bold">{curPet.vaccine}</div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSimVetPatients((prev) =>
+                          prev.map((p, i) => (i === simVetPatientIdx ? { ...p, vaccineApplied: !p.vaccineApplied } : p))
+                        )
+                      }
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        curPet.vaccineApplied
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                          : "bg-amber-500 text-black"
                       }`}
                     >
-                      <span className="text-[9px] text-neutral-400">#</span>
-                      <span>{t}</span>
+                      {curPet.vaccineApplied ? "✓ Dosis Aplicada (Click cambiar)" : "+ Aplicar Vacuna Ahora"}
+                    </button>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/60 space-y-1.5">
+                    <span className="text-[10px] text-neutral-400 font-bold uppercase">Desparasitación & Fármaco</span>
+                    <div className="text-xs font-bold text-apple-blue">{curPet.deworming}</div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSimVetPatients((prev) =>
+                          prev.map((p, i) => (i === simVetPatientIdx ? { ...p, dewormingApplied: !p.dewormingApplied } : p))
+                        )
+                      }
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        curPet.dewormingApplied
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                          : "bg-apple-blue text-white"
+                      }`}
+                    >
+                      {curPet.dewormingApplied ? "✓ Administrado en Clínica" : "+ Administrar Dosis"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-xs">
+                    <span className="font-extrabold text-neutral-900 dark:text-white block">
+                      Liquidación de Consulta Veterinaria ({curPet.name}) + {curPet.medName}:
+                    </span>
+                    <span className="font-mono font-black text-amber-600 dark:text-amber-400">
+                      Honorarios C$ {curPet.consultPrice}.00 + Fármaco C$ {curPet.medPrice}.00 = C$ {(curPet.consultPrice + curPet.medPrice).toFixed(2)}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addSimItem(`Consulta Vet (${curPet.name}) + ${curPet.medName}`, curPet.consultPrice + curPet.medPrice, "consulta");
+                      setActiveTab("pos");
+                    }}
+                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-extrabold shadow-md flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Receipt className="w-3.5 h-3.5" />
+                    <span>Facturar Consulta y Fármacos en POS →</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* TAB 6: RUTAS GPS & DESPACHO EN MAPA */}
+          {activeTab === "routes" && (() => {
+            const activePin = simRoutePins[simActivePinIdx] || simRoutePins[0];
+            return (
+              <div className="py-4 space-y-4 animate-fadeIn">
+                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-neutral-200 dark:border-neutral-800">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-neutral-900 dark:text-white">
+                      Rutas de Reparto GPS, Mapa Interactivo & Preventa en Sitio
+                    </h3>
+                    <p className="text-[11px] text-neutral-500">
+                      Selecciona cualquiera de los pines de entrega en la ruta para inspeccionar su pedido y enviarlo a facturación en caja.
+                    </p>
+                  </div>
+                  <span className="text-xs px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold font-mono">
+                    🚚 Camión Isuzu NPR • Placa CH-24910
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+                  <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {simRoutePins.map((pin, idx) => {
+                      const isSel = simActivePinIdx === idx;
+                      return (
+                        <button
+                          key={pin.id}
+                          type="button"
+                          onClick={() => setSimActivePinIdx(idx)}
+                          className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer space-y-1.5 ${
+                            isSel
+                              ? "bg-indigo-600 text-white border-indigo-500 shadow-lg scale-[1.02]"
+                              : "bg-neutral-50 dark:bg-neutral-800/70 border-neutral-200 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-mono font-bold uppercase">Parada #{pin.id}</span>
+                            <MapPin className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="text-xs font-extrabold line-clamp-1">{pin.name}</div>
+                          <div className="text-xs font-mono font-bold">C$ {pin.total.toLocaleString("es-NI")}.00</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="lg:col-span-5 p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700 space-y-2.5 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-neutral-900 dark:text-white">{activePin.name}</span>
+                      <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold">
+                        GPS Verificado
+                      </span>
                     </div>
-                  ))}
-                </div>
-                <div className="flex justify-center gap-4 text-[10px] font-semibold pt-1 text-neutral-500">
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" /> Caries / Por Tratar</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" /> Restauración Realizada</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-neutral-300" /> Pieza Sana</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 5: VETERINARIA */}
-          {activeTab === "vet" && (
-            <div className="py-4 space-y-4 animate-fadeIn">
-              <div className="flex items-center justify-between pb-2 border-b border-neutral-200 dark:border-neutral-800">
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
-                    Expediente Veterinario & Control de Vacunación
-                  </h3>
-                  <p className="text-[11px] text-neutral-500">
-                    Ficha médica de mascotas, carnet de desparasitación, citas de refuerzo y cobro de fármacos.
-                  </p>
-                </div>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold">
-                  Rocky (Golden Retriever • 29.5 Kg)
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-sans">
-                <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/60 space-y-1">
-                  <span className="text-[10px] text-neutral-400 font-bold uppercase">Tutor / Dueño</span>
-                  <div className="text-xs font-bold">Elena Castillo</div>
-                  <div className="text-[11px] font-mono text-neutral-500">+505 8890-1234</div>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/60 space-y-1">
-                  <span className="text-[10px] text-neutral-400 font-bold uppercase">Vacuna Rabia</span>
-                  <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400">✓ Aplicada (Nobivac)</div>
-                  <div className="text-[11px] text-neutral-500">Próximo refuerzo: Nov 2027</div>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/60 space-y-1">
-                  <span className="text-[10px] text-neutral-400 font-bold uppercase">Tratamiento Actual</span>
-                  <div className="text-xs font-bold text-apple-blue">Desparasitación NexGard</div>
-                  <div className="text-[11px] text-neutral-500">1 tableta masticable</div>
+                    <p className="text-[11px] text-neutral-500">
+                      Contacto: <strong>{activePin.contact}</strong> • Carga: {activePin.itemsLabel}
+                    </p>
+                    <div className="flex items-center justify-between pt-2 border-t border-neutral-200 dark:border-neutral-700">
+                      <span className="font-mono font-black text-sm text-apple-blue">
+                        C$ {activePin.total.toLocaleString("es-NI")}.00
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          addSimItem(`Pedido Ruta GPS: ${activePin.name}`, activePin.total, "pedido");
+                          setActiveTab("pos");
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs cursor-pointer"
+                      >
+                        Liquidar en Caja POS →
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
         </div>
 
@@ -1016,29 +1623,29 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
             </div>
           </div>
 
-          {/* Card 3: Impresión Bluetooth en 3 segundos */}
+          {/* Card 3: Impresión Universal en 3 segundos (Impresoras Normales + Térmicas + Bluetooth) */}
           <div className="p-7 rounded-3xl bg-white dark:bg-[#121319] border border-neutral-200/80 dark:border-neutral-800 shadow-apple flex flex-col justify-between relative overflow-hidden group hover:border-apple-blue/50 hover:-translate-y-1 transition-all duration-300">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="w-12 h-12 rounded-2xl bg-apple-blue/10 text-apple-blue flex items-center justify-center shadow-inner">
-                  <Smartphone className="w-6 h-6" />
+                  <Printer className="w-6 h-6" />
                 </div>
                 <span className="px-2.5 py-1 rounded-full bg-apple-blue/10 text-apple-blue text-[10px] font-mono font-extrabold uppercase tracking-wider border border-apple-blue/20">
-                  &lt; 3 Seg / Ticket
+                  &lt; 3 Seg / Factura
                 </span>
               </div>
               <h3 className="text-lg font-extrabold text-neutral-900 dark:text-white group-hover:text-apple-blue transition-colors">
-                Facturación Térmica Bluetooth Pro
+                Impresión Universal: Normales y Térmicas
               </h3>
               <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                Despacha filas en tiempo récord. Imprime facturas de 58mm y 80mm desde celular, tablet o PC sin cables ni licencias extra, con tu logotipo comercial de alto contraste, RUC, IVA y código de barras.
+                Compatible con cualquier impresora que ya tengas: <strong>impresoras normales de oficina (láser o tinta en hoja Carta / A4)</strong>, impresoras térmicas de 58mm y 80mm (por cable USB, Wi-Fi o Bluetooth) y exportación PDF con tu logotipo y RUC.
               </p>
             </div>
             <div className="pt-5 mt-5 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between text-[11px] font-semibold text-apple-blue">
               <span className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Plug & Play sin drivers
+                <CheckCircle2 className="w-3.5 h-3.5" /> Láser, Tinta, USB, BT y PDF
               </span>
-              <span className="font-mono">58mm / 80mm</span>
+              <span className="font-mono">Carta / 80mm / 58mm</span>
             </div>
           </div>
 
@@ -1728,7 +2335,7 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
           <span className="font-bold text-neutral-800 dark:text-neutral-200">NÚCLEO ERP // Arquitectura Modular Empresarial</span>
         </div>
         <p className="text-[11px] text-neutral-400">
-          Alta velocidad • Operación 100% Offline • Facturación Térmica Bluetooth • Centroamérica UTC-6
+          Alta velocidad • Operación 100% Offline • Impresión Universal (Láser, Tinta, Térmica USB/Bluetooth & PDF) • Centroamérica UTC-6
         </p>
       </footer>
 
