@@ -68,7 +68,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { id: "spatial", name: "Ver Red Espacial (Topología de Nodos)", icon: <Network className="w-4 h-4 text-apple-teal" />, category: "Dirección" },
     { id: "settings", name: "Ajustes de Factura, Impresora Bluetooth y Núcleo Cloud", icon: <Sliders className="w-4 h-4 text-apple-blue" />, category: "Configuración" },
     { id: "terminal", name: "Abrir SuperAdmin Terminal (God Mode)", icon: <Terminal className="w-4 h-4 text-apple-orange" />, category: "SuperAdmin" },
-    { id: "wizard", name: "Reconfigurar Negocio / Business Builder", icon: <Sliders className="w-4 h-4 text-apple-pink" />, category: "Configuración" },
   ];
 
   // Filtrar estrictamente por los módulos a los que el usuario actual tiene acceso

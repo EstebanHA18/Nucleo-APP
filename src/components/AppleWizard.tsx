@@ -38,44 +38,47 @@ import { saveStoredTenant } from "@/lib/offlineStore";
 import { NucleoIcon } from "./NucleoIcon";
 
 interface AppleWizardProps {
+  initialTenant?: TenantSettings | null;
   onComplete: (tenant: TenantSettings) => void;
 }
 
-export const AppleWizard: React.FC<AppleWizardProps> = ({ onComplete }) => {
+export const AppleWizard: React.FC<AppleWizardProps> = ({ initialTenant, onComplete }) => {
   const [step, setStep] = useState<number>(1);
   const [isFinishing, setIsFinishing] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
 
-  // 1. Datos del Propietario / Dueño
-  const [ownerName, setOwnerName] = useState<string>("Esteban Hernández");
-  const [ownerEmail, setOwnerEmail] = useState<string>("esteban@ferreteria.ni");
-  const [ownerPhone, setOwnerPhone] = useState<string>("+505 8892-3344");
-  const [ownerPin, setOwnerPin] = useState<string>("1234");
+  // 1. Datos del Propietario / Dueño (Precargados desde lo que creó SuperAdmin)
+  const [ownerName, setOwnerName] = useState<string>(initialTenant?.owner?.fullName || "Propietario del Negocio");
+  const [ownerEmail, setOwnerEmail] = useState<string>(initialTenant?.owner?.email || initialTenant?.email || "contacto@minegocio.ni");
+  const [ownerPhone, setOwnerPhone] = useState<string>(initialTenant?.owner?.phone || initialTenant?.phone || "+505 8800-0000");
+  const [ownerPin, setOwnerPin] = useState<string>(initialTenant?.owner?.pinCode || initialTenant?.loginPassword || "1234");
   const [ownerRole, setOwnerRole] = useState<string>("Propietario General");
 
   // 2. Datos de la Empresa / Negocio
-  const [businessName, setBusinessName] = useState<string>("Ferretería El Tornillo Dorado");
-  const [legalName, setLegalName] = useState<string>("Distribuidora Ferretera del Occidente S.A.");
-  const [taxId, setTaxId] = useState<string>("J031000049102");
-  const [businessPhone, setBusinessPhone] = useState<string>("+505 2341-2090");
-  const [city, setCity] = useState<string>("Chinandega");
-  const [address, setAddress] = useState<string>("Costado Norte del Parque Central, 1c al Este");
-  const [currency, setCurrency] = useState<"NIO" | "USD">("NIO");
-  const [exchangeRate, setExchangeRate] = useState<number>(36.62);
+  const [businessName, setBusinessName] = useState<string>(initialTenant?.name || "Mi Negocio");
+  const [legalName, setLegalName] = useState<string>(initialTenant?.legalName || initialTenant?.name || "");
+  const [taxId, setTaxId] = useState<string>(initialTenant?.taxId || "J031000000000");
+  const [businessPhone, setBusinessPhone] = useState<string>(initialTenant?.phone || "+505 2200-0000");
+  const [city, setCity] = useState<string>(initialTenant?.city || "Managua");
+  const [address, setAddress] = useState<string>(initialTenant?.address || "Dirección comercial");
+  const [currency, setCurrency] = useState<"NIO" | "USD">(initialTenant?.currency || "NIO");
+  const [exchangeRate, setExchangeRate] = useState<number>(initialTenant?.exchangeRate || 36.62);
 
   // 3. Vertical & Módulos
-  const [selectedVertical, setSelectedVertical] = useState<BusinessVertical>("ferreteria");
-  const [activeModules, setActiveModules] = useState<ModuleKey[]>([
-    "pos",
-    "inventory",
-    "billing",
-    "customers",
-    "expenses",
-  ]);
+  const [selectedVertical, setSelectedVertical] = useState<BusinessVertical>(initialTenant?.businessVertical || "ferreteria");
+  const [activeModules, setActiveModules] = useState<ModuleKey[]>(
+    initialTenant?.activeModules || [
+      "pos",
+      "inventory",
+      "billing",
+      "customers",
+      "expenses",
+    ]
+  );
 
   // 4. Ticket
-  const [ticketFormat, setTicketFormat] = useState<"58mm" | "80mm" | "letter">("80mm");
-  const [ticketFooter, setTicketFooter] = useState<string>("¡Gracias por su compra! Venta al contado.");
+  const [ticketFormat, setTicketFormat] = useState<"58mm" | "80mm" | "letter">(initialTenant?.ticketFormat || "80mm");
+  const [ticketFooter, setTicketFooter] = useState<string>(initialTenant?.ticketFooter || "¡Gracias por su compra! Venta al contado.");
 
   const totalSteps = 5;
 
@@ -131,7 +134,8 @@ export const AppleWizard: React.FC<AppleWizardProps> = ({ onComplete }) => {
         }
         setTimeout(() => {
           const tenantData: TenantSettings = {
-            id: "tenant-" + Date.now(),
+            ...(initialTenant || {}),
+            id: initialTenant?.id || "tenant-" + Date.now(),
             name: businessName,
             legalName,
             taxId,
@@ -150,14 +154,16 @@ export const AppleWizard: React.FC<AppleWizardProps> = ({ onComplete }) => {
             currency,
             secondaryCurrency: currency === "NIO" ? "USD" : "NIO",
             exchangeRate,
-            taxPercentage: 15.0,
+            taxPercentage: initialTenant?.taxPercentage || 15.0,
             activeModules,
             ticketFormat,
             ticketHeader: businessName,
             ticketFooter,
             isSetupCompleted: true,
-            monthlyPlanPrice: 29.0,
-            planName: "Pro",
+            monthlyPlanPrice: initialTenant?.monthlyPlanPrice || 35.0,
+            planName: initialTenant?.planName || "Pro",
+            loginUsername: initialTenant?.loginUsername,
+            loginPassword: ownerPin || initialTenant?.loginPassword,
           };
           saveStoredTenant(tenantData);
           onComplete(tenantData);

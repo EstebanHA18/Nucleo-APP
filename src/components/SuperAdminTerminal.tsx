@@ -29,9 +29,13 @@ import {
   Layers,
   Bug,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  UserPlus,
+  Phone,
+  Mail,
+  MapPin
 } from "lucide-react";
-import { TenantSettings, ModuleKey, AppUser, BusinessVertical, SupportTicket, TicketStatus } from "@/types";
+import { TenantSettings, ModuleKey, AppUser, BusinessVertical, SupportTicket, TicketStatus, ClientLead, LeadStatus } from "@/types";
 import { AVAILABLE_MODULES, VERTICAL_PRESETS } from "@/lib/constants";
 import { calculateTenantBilling, getCentralAmericaNow, formatCentralAmericaDate } from "@/lib/centralAmericaBilling";
 import { pushAllLocalDataToSupabase } from "@/lib/offlineStore";
@@ -47,6 +51,8 @@ interface SuperAdminTerminalProps {
   onSaveAllUsers: (users: AppUser[]) => void;
   supportTickets?: SupportTicket[];
   onSaveSupportTickets?: (tickets: SupportTicket[]) => void;
+  clientLeads?: ClientLead[];
+  onSaveClientLeads?: (leads: ClientLead[]) => void;
   onReturnToDashboard?: () => void;
 }
 
@@ -60,10 +66,15 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
   onSaveAllUsers,
   supportTickets = [],
   onSaveSupportTickets,
+  clientLeads = [],
+  onSaveClientLeads,
   onReturnToDashboard,
 }) => {
-  const [activeTab, setActiveTab] = useState<"tenants" | "helpdesk" | "passwords" | "cli">("tenants");
+  const [activeTab, setActiveTab] = useState<"tenants" | "leads" | "helpdesk" | "passwords" | "cli">("tenants");
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [filterLeadStatus, setFilterLeadStatus] = useState<"all" | LeadStatus>("all");
+  const [convertingLeadId, setConvertingLeadId] = useState<string | null>(null);
   const [adminReplyText, setAdminReplyText] = useState("");
   const [filterTicketStatus, setFilterTicketStatus] = useState<"all" | TicketStatus>("all");
   const [adminActionNotice, setAdminActionNotice] = useState<string | null>(null);
@@ -275,7 +286,7 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
       showLogoOnTicket: true,
       logoSize: "md",
       autoPrintBluetooth: false,
-      isSetupCompleted: true,
+      isSetupCompleted: false, // Se pone en false para que al iniciar sesión por 1ra vez al propietario le aparezca el Wizard de bienvenida
       monthlyPlanPrice: Number(newBizPrice) || 35.0,
       planName: Number(newBizPrice) > 40 ? "Enterprise" : "Pro",
       billingCycle: "monthly",
@@ -311,6 +322,23 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
     onSaveAllTenants(updatedTenants);
     onSaveAllUsers(updatedUsers);
 
+    // Si este negocio se creó desde una solicitud de Futuro Cliente (Lead), marcar el Lead como convertido
+    if (convertingLeadId && onSaveClientLeads) {
+      const updatedLeads = clientLeads.map((l) =>
+        l.id === convertingLeadId
+          ? {
+              ...l,
+              status: "converted" as const,
+              unreadByAdmin: false,
+              createdTenantId: newId,
+              createdUsername: newUsername,
+            }
+          : l
+      );
+      onSaveClientLeads(updatedLeads);
+      setConvertingLeadId(null);
+    }
+
     // Limpiar formulario y cerrar
     setNewBizName("");
     setNewBizLegal("");
@@ -322,7 +350,9 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
     setNewBizOwnerPass("1234");
     setShowCreateModal(false);
 
-    alert(`¡Perfil del negocio "${newTenant.name}" creado con éxito en SuperAdmin!\nUsuario: ${newUsername}\nContraseña: ${newPassword}`);
+    alert(
+      `¡Perfil del negocio "${newTenant.name}" creado con éxito!\n\nUsuario de Propietario: ${newUsername}\nContraseña inicial: ${newPassword}\n\nAl iniciar sesión por primera vez, el propietario verá el Asistente de Configuración Inicial (Wizard).`
+    );
   };
 
   // Guardar edición de datos de un negocio
@@ -361,6 +391,63 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
       setEditingUserPassword(null);
       setNewPasswordVal("");
     }, 1500);
+  };
+
+  // ==========================================
+  // LÓGICA DE BANDEJA DE FUTUROS CLIENTES (LEADS)
+  // ==========================================
+  const unreadLeadsCount = clientLeads.filter((l) => l.unreadByAdmin || l.status === "new").length;
+  const filteredLeads = clientLeads.filter((l) =>
+    filterLeadStatus === "all" ? true : l.status === filterLeadStatus
+  );
+  const activeLead =
+    filteredLeads.find((l) => l.id === selectedLeadId) ||
+    clientLeads.find((l) => l.id === selectedLeadId) ||
+    filteredLeads[0] ||
+    null;
+
+  const handleSelectLead = (lead: ClientLead) => {
+    setSelectedLeadId(lead.id);
+    if (lead.unreadByAdmin && onSaveClientLeads) {
+      const updated = clientLeads.map((l) => (l.id === lead.id ? { ...l, unreadByAdmin: false } : l));
+      onSaveClientLeads(updated);
+    }
+  };
+
+  const handleUpdateLeadStatus = (leadId: string, newStatus: LeadStatus) => {
+    if (!onSaveClientLeads) return;
+    const updated = clientLeads.map((l) =>
+      l.id === leadId ? { ...l, status: newStatus, unreadByAdmin: false } : l
+    );
+    onSaveClientLeads(updated);
+    setAdminActionNotice(`Estado del prospecto actualizado a "${newStatus.toUpperCase()}".`);
+    setTimeout(() => setAdminActionNotice(null), 3000);
+  };
+
+  const handleOpenCreateAccountFromLead = (lead: ClientLead) => {
+    setConvertingLeadId(lead.id);
+    setNewBizName(lead.businessName);
+    setNewBizLegal(lead.businessName);
+    setNewBizTaxId(lead.taxId || "J031000000000");
+    setNewBizPhone(lead.phone);
+    setNewBizCity(lead.city || "Managua");
+    setNewBizAddress(lead.address || lead.city || "Nicaragua");
+    setNewBizVertical(lead.businessVertical || "ferreteria");
+    setNewBizOwnerName(lead.fullName);
+    const cleanUser = lead.businessName
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, "")
+      .slice(0, 14);
+    setNewBizOwnerUser(cleanUser || `dueno_${Date.now().toString().slice(-4)}`);
+    setNewBizOwnerPass("1234");
+    setNewBizModules(
+      lead.interestedModules && lead.interestedModules.length > 0
+        ? lead.interestedModules
+        : ["pos", "inventory", "billing", "customers"]
+    );
+    setShowCreateModal(true);
   };
 
   // ==========================================
@@ -532,6 +619,29 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
           >
             <Building2 className="w-4 h-4" />
             <span>Perfiles de Negocios & Facturación SaaS</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("leads");
+              if (activeLead && activeLead.unreadByAdmin) {
+                handleSelectLead(activeLead);
+              }
+            }}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "leads"
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+            }`}
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Futuros Clientes (Solicitudes de Cuenta)</span>
+            {unreadLeadsCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-mono font-bold animate-pulse">
+                {unreadLeadsCount}
+              </span>
+            )}
           </button>
 
           <button
@@ -723,6 +833,277 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
             })}
           </div>
 
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* PESTAÑA FUTUROS CLIENTES: SOLICITUDES DESDE LOGIN        */}
+      {/* ======================================================== */}
+      {activeTab === "leads" && (
+        <div className="space-y-4 animate-fadeIn">
+          <div className="p-5 rounded-3xl bg-white dark:bg-[#18191f] border border-neutral-200/80 dark:border-neutral-800 shadow-apple flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <UserPlus className="w-4 h-4 text-emerald-500" />
+                <h3 className="text-sm font-extrabold text-neutral-900 dark:text-white">
+                  Bandeja de Futuros Clientes // Solicitudes de Cuenta desde Login
+                </h3>
+              </div>
+              <p className="text-xs text-neutral-400 mt-0.5">
+                Prospectos que completaron sus datos personales y de su negocio solicitando una cuenta de Propietario.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              {[
+                { id: "all", label: `Todos (${clientLeads.length})` },
+                { id: "new", label: `Nuevos (${clientLeads.filter((l) => l.status === "new").length})` },
+                { id: "contacted", label: `Contactados (${clientLeads.filter((l) => l.status === "contacted").length})` },
+                { id: "converted", label: `Cuentas Creadas (${clientLeads.filter((l) => l.status === "converted").length})` },
+              ].map((flt) => (
+                <button
+                  key={flt.id}
+                  type="button"
+                  onClick={() => setFilterLeadStatus(flt.id as any)}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                    filterLeadStatus === flt.id
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200"
+                  }`}
+                >
+                  {flt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {adminActionNotice && (
+            <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-2 animate-fadeIn">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{adminActionNotice}</span>
+            </div>
+          )}
+
+          {filteredLeads.length === 0 ? (
+            <div className="p-12 rounded-3xl bg-white dark:bg-[#18191f] border border-neutral-200/80 dark:border-neutral-800 text-center space-y-2">
+              <UserPlus className="w-10 h-10 text-neutral-300 dark:text-neutral-700 mx-auto stroke-1" />
+              <h4 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">
+                No hay solicitudes de futuros clientes en esta categoría
+              </h4>
+              <p className="text-xs text-neutral-400">
+                Cuando un visitante pulse &quot;Solicitar Cuenta&quot; en el portal de inicio de sesión, sus datos aparecerán aquí automáticamente.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              
+              {/* Lista Izquierda de Prospectos */}
+              <div className="lg:col-span-5 space-y-2.5 max-h-[600px] overflow-y-auto pr-1">
+                {filteredLeads.map((lead) => {
+                  const isSelected = activeLead?.id === lead.id;
+                  return (
+                    <div
+                      key={lead.id}
+                      onClick={() => handleSelectLead(lead)}
+                      className={`p-4 rounded-2xl border cursor-pointer transition-all space-y-2 ${
+                        isSelected
+                          ? "bg-white dark:bg-[#18191f] border-emerald-500 ring-2 ring-emerald-500/20 shadow-md"
+                          : "bg-white/80 dark:bg-[#18191f]/70 border-neutral-200/80 dark:border-neutral-800 hover:border-neutral-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono font-bold text-[11px] text-emerald-500">
+                            {lead.leadCode}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-apple-blue/15 text-apple-blue">
+                            {lead.businessVertical}
+                          </span>
+                          {lead.unreadByAdmin && (
+                            <span className="px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold animate-pulse">
+                              NUEVO PROSPECTO
+                            </span>
+                          )}
+                        </div>
+
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase ${
+                          lead.status === "new"
+                            ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                            : lead.status === "contacted"
+                            ? "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+                            : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                        }`}>
+                          {lead.status === "new"
+                            ? "Por Atender"
+                            : lead.status === "contacted"
+                            ? "Contactado"
+                            : "Cuenta Creada ✓"}
+                        </span>
+                      </div>
+
+                      <div>
+                        <h4 className="text-xs font-extrabold text-neutral-900 dark:text-white">
+                          🏢 {lead.businessName}
+                        </h4>
+                        <span className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 block mt-0.5">
+                          👤 {lead.fullName} • 📍 {lead.city}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[10px] text-neutral-400 font-mono pt-1 border-t border-neutral-100 dark:border-neutral-800/60">
+                        <span>📞 {lead.phone}</span>
+                        <span>{new Date(lead.createdAt).toLocaleString("es-NI")}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Panel Derecho: Expediente Personal y Comercial del Futuro Cliente */}
+              <div className="lg:col-span-7">
+                {activeLead ? (
+                  <div className="p-6 rounded-3xl bg-white dark:bg-[#18191f] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-5">
+                    
+                    <div className="flex flex-wrap items-start justify-between gap-3 pb-4 border-b border-neutral-200 dark:border-neutral-800">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-500 font-mono font-bold text-xs">
+                            {activeLead.leadCode}
+                          </span>
+                          <h3 className="text-base font-black text-neutral-900 dark:text-white">
+                            {activeLead.businessName}
+                          </h3>
+                        </div>
+                        <p className="text-xs text-neutral-500 mt-0.5">
+                          Solicitud recibida el {new Date(activeLead.createdAt).toLocaleString("es-NI")}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateLeadStatus(activeLead.id, "contacted")}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                            activeLead.status === "contacted"
+                              ? "bg-apple-blue text-white border-apple-blue"
+                              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700"
+                          }`}
+                        >
+                          Marcar Contactado
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Tarjetas de Datos Personales y del Negocio */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
+                      <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/60 space-y-2">
+                        <span className="text-[10px] font-mono font-bold uppercase text-apple-blue block">
+                          Datos Personales del Solicitante
+                        </span>
+                        <div>
+                          <span className="text-neutral-400 text-[10px] block">Nombre Completo:</span>
+                          <span className="font-bold text-neutral-900 dark:text-white text-sm">{activeLead.fullName}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-3.5 h-3.5 text-emerald-500" />
+                          <span className="font-mono font-bold">{activeLead.phone}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-3.5 h-3.5 text-apple-blue" />
+                          <span className="font-mono">{activeLead.email}</span>
+                        </div>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/60 space-y-2">
+                        <span className="text-[10px] font-mono font-bold uppercase text-emerald-500 block">
+                          Ficha Comercial de la Empresa
+                        </span>
+                        <div>
+                          <span className="text-neutral-400 text-[10px] block">Rubro / Vertical:</span>
+                          <span className="font-bold text-neutral-900 dark:text-white uppercase font-mono">{activeLead.businessVertical}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-3.5 h-3.5 text-amber-500" />
+                          <span>Ciudad: <strong>{activeLead.city}</strong></span>
+                        </div>
+                        <div>
+                          <span className="text-neutral-400 text-[11px]">RUC / Cédula: </span>
+                          <span className="font-mono font-bold">{activeLead.taxId || "Por definir en Wizard"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Módulos de Interés */}
+                    <div className="space-y-2">
+                      <span className="text-[11px] font-bold text-neutral-600 dark:text-neutral-300 block">
+                        Paneles Solicitados por el Futuro Cliente:
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {activeLead.interestedModules.map((mKey) => {
+                          const mInfo = AVAILABLE_MODULES.find((m) => m.key === mKey);
+                          return (
+                            <span
+                              key={mKey}
+                              className="px-2.5 py-1 rounded-xl bg-apple-blue/10 border border-apple-blue/20 text-apple-blue text-xs font-bold flex items-center gap-1.5"
+                            >
+                              <Layers className="w-3 h-3" />
+                              <span>{mInfo?.name || mKey}</span>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Comentarios / Notas */}
+                    {activeLead.notes && (
+                      <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-1">
+                        <span className="text-[10px] font-mono font-bold uppercase text-amber-600 dark:text-amber-400 block">
+                          Comentarios del Solicitante:
+                        </span>
+                        <p className="text-neutral-700 dark:text-neutral-200 leading-relaxed">
+                          &ldquo;{activeLead.notes}&rdquo;
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Acción Principal: Crear Cuenta de Propietario en 1 Clic */}
+                    <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-3">
+                      {activeLead.status === "converted" ? (
+                        <div className="w-full p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex flex-wrap items-center justify-between gap-3">
+                          <div className="text-xs">
+                            <span className="font-extrabold text-emerald-700 dark:text-emerald-300 block">
+                              ✓ Cuenta de Propietario Ya Creada para este Cliente
+                            </span>
+                            <span className="font-mono text-[11px] text-neutral-600 dark:text-neutral-300">
+                              Usuario asignado: <strong>{activeLead.createdUsername || "propietario"}</strong> • El cliente verá el Wizard en su 1er inicio de sesión.
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenCreateAccountFromLead(activeLead)}
+                            className="px-3.5 py-2 rounded-xl bg-neutral-900 text-white text-xs font-bold cursor-pointer"
+                          >
+                            Crear Otra Sucursal
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenCreateAccountFromLead(activeLead)}
+                          className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4 stroke-[2.5]" />
+                          <span>Crear Cuenta de Propietario y Negocio desde esta Solicitud (1-Clic)</span>
+                        </button>
+                      )}
+                    </div>
+
+                  </div>
+                ) : null}
+              </div>
+
+            </div>
+          )}
         </div>
       )}
 

@@ -29,6 +29,7 @@ import {
   ClinicalPatient,
   PendingBill,
   SupportTicket,
+  ClientLead,
   HREmployee,
   ProductionRecipe,
   ProductionOrder,
@@ -57,6 +58,8 @@ import {
   saveStoredClinicalPatients,
   getStoredSupportTickets,
   saveStoredSupportTickets,
+  getStoredClientLeads,
+  saveStoredClientLeads,
   getStoredHREmployees,
   saveStoredHREmployees,
   getStoredRecipes,
@@ -102,8 +105,9 @@ export default function Home() {
   const [routeOrders, setRouteOrders] = useState<RouteCustomerOrder[]>([]);
   const [pendingBill, setPendingBill] = useState<PendingBill | null>(null);
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [clientLeads, setClientLeads] = useState<ClientLead[]>([]);
 
-  // Cargar todos los datos correspondientes a un tenant específico (Local + Hidratación Supabase)
+  // Cargar todos los datos correspondientes a un tenant específico (Local + Hidratación Núcleo Cloud)
   const loadDataForTenant = useCallback(async (targetTenant: TenantSettings) => {
     const tid = targetTenant.id;
     setProducts(getStoredProducts(tid));
@@ -118,6 +122,7 @@ export default function Home() {
     setDeliveryRoutes(getStoredDeliveryRoutes(tid));
     setRouteOrders(getStoredRouteOrders(tid));
     setSupportTickets(getStoredSupportTickets());
+    setClientLeads(getStoredClientLeads());
 
     const loadedUsers = getStoredUsers(targetTenant);
     setUsers(loadedUsers);
@@ -185,6 +190,10 @@ export default function Home() {
           setSupportTickets(cloud.supportTickets);
           saveStoredSupportTickets(cloud.supportTickets);
         }
+        if (cloud.clientLeads && cloud.clientLeads.length > 0) {
+          setClientLeads(cloud.clientLeads);
+          saveStoredClientLeads(cloud.clientLeads);
+        }
         // Si la base de datos en Supabase está recién creada (sin productos aún para este tenant), subir semilla inicial
         if (!cloud.products || cloud.products.length === 0) {
           pushAllLocalDataToSupabase(tid);
@@ -222,6 +231,10 @@ export default function Home() {
 
       if (activeUser) {
         setActiveView(getDefaultViewForUser(activeUser, storedTenant));
+        // Mostrar el Wizard ÚNICAMENTE si es un propietario cuyo negocio recién creado aún no ha completado su configuración inicial
+        if (activeUser.role === "owner" && storedTenant && storedTenant.isSetupCompleted === false) {
+          setShowWizard(true);
+        }
       }
 
       return () => {
@@ -262,13 +275,34 @@ export default function Home() {
   }, [darkMode]);
 
   const handleWizardComplete = (completedTenant: TenantSettings) => {
-    setTenant(completedTenant);
-    saveStoredTenant(completedTenant);
+    const finalizedTenant: TenantSettings = {
+      ...completedTenant,
+      isSetupCompleted: true,
+    };
+    setTenant(finalizedTenant);
+    saveStoredTenant(finalizedTenant);
+    setTenants(getStoredTenantsList());
     setShowWizard(false);
     
-    const updatedUsers = getStoredUsers(completedTenant);
+    const loadedUsers = getStoredUsers(finalizedTenant);
+    const updatedUsers = loadedUsers.map((u) => {
+      if (u.role === "owner" && u.tenantId === finalizedTenant.id) {
+        return {
+          ...u,
+          fullName: finalizedTenant.owner.fullName || u.fullName,
+          email: finalizedTenant.owner.email || u.email,
+          phone: finalizedTenant.owner.phone || u.phone,
+          pinCode: finalizedTenant.owner.pinCode || u.pinCode,
+          password: finalizedTenant.owner.pinCode || u.password,
+          allowedModules: finalizedTenant.activeModules,
+        };
+      }
+      return u;
+    });
     setUsers(updatedUsers);
-    const owner = updatedUsers.find((u) => u.role === "owner" && (!u.tenantId || u.tenantId === completedTenant.id)) || updatedUsers[0];
+    saveStoredUsers(updatedUsers, finalizedTenant.id);
+
+    const owner = updatedUsers.find((u) => u.role === "owner" && (!u.tenantId || u.tenantId === finalizedTenant.id)) || updatedUsers[0];
     setCurrentUser(owner);
     saveCurrentUser(owner);
     setImpersonatingOwner(null);
@@ -364,6 +398,7 @@ export default function Home() {
 
   const handleLoginSuccess = (user: AppUser, selectedTenant: TenantSettings) => {
     setImpersonatingOwner(null);
+    const activeT = selectedTenant || tenant;
     if (selectedTenant) {
       setTenant(selectedTenant);
       saveStoredTenant(selectedTenant);
@@ -371,7 +406,15 @@ export default function Home() {
     }
     setCurrentUser(user);
     saveCurrentUser(user);
-    setActiveView(getDefaultViewForUser(user, selectedTenant || tenant));
+
+    // Abrir el Wizard SOLO la primera vez que inicia sesión un nuevo propietario creado desde SuperAdmin
+    if (user.role === "owner" && activeT && activeT.isSetupCompleted === false) {
+      setShowWizard(true);
+    } else {
+      setShowWizard(false);
+    }
+
+    setActiveView(getDefaultViewForUser(user, activeT));
   };
 
   const handleLogout = () => {
@@ -395,18 +438,22 @@ export default function Home() {
         onLoginSuccess={handleLoginSuccess}
         darkMode={darkMode}
         setDarkMode={setDarkMode}
+        onLeadSubmitted={(updatedLeads) => setClientLeads(updatedLeads)}
       />
     );
   }
 
   const isEmployeeSession = currentUser.role !== "owner" && currentUser.role !== "superadmin";
+  const unreadGodModeCount =
+    supportTickets.filter((t) => t.unreadByAdmin || t.status === "open").length +
+    clientLeads.filter((l) => l.unreadByAdmin || l.status === "new").length;
 
   return (
     <div className="min-h-screen bg-[#f5f5f7] dark:bg-[#0d0e11] text-neutral-900 dark:text-neutral-100 flex flex-col font-sans transition-colors duration-200">
       
-      {/* Apple-style Setup Wizard (Solo accesible para Dueño o SuperAdmin) */}
+      {/* Apple-style Setup Wizard (Se abre únicamente en el 1er inicio de sesión de un propietario nuevo) */}
       {showWizard && !isEmployeeSession && (
-        <AppleWizard onComplete={handleWizardComplete} />
+        <AppleWizard initialTenant={tenant} onComplete={handleWizardComplete} />
       )}
 
       {/* Main App Layout */}
@@ -423,9 +470,9 @@ export default function Home() {
           users={users}
           onSwitchUser={handleSwitchUser}
           onOpenCommandPalette={() => setShowCommandPalette(true)}
-          onOpenSettingsWizard={() => !isEmployeeSession && setShowWizard(true)}
+          onOpenSettingsWizard={() => handleNavigateGuarded("settings")}
           onLogout={handleLogout}
-          unreadGodModeTickets={supportTickets.filter((t) => t.unreadByAdmin || t.status === "open").length}
+          unreadGodModeTickets={unreadGodModeCount}
           isImpersonating={Boolean(impersonatingOwner)}
           onReturnToOwner={handleReturnToOwner}
         />
@@ -567,6 +614,11 @@ export default function Home() {
                 setSupportTickets(updatedTickets);
                 saveStoredSupportTickets(updatedTickets);
               }}
+              clientLeads={clientLeads}
+              onSaveClientLeads={(updatedLeads) => {
+                setClientLeads(updatedLeads);
+                saveStoredClientLeads(updatedLeads);
+              }}
             />
           )}
 
@@ -581,6 +633,11 @@ export default function Home() {
               onSaveSupportTickets={(updatedTickets) => {
                 setSupportTickets(updatedTickets);
                 saveStoredSupportTickets(updatedTickets);
+              }}
+              clientLeads={clientLeads}
+              onSaveClientLeads={(updatedLeads) => {
+                setClientLeads(updatedLeads);
+                saveStoredClientLeads(updatedLeads);
               }}
             />
           )}
@@ -668,7 +725,7 @@ export default function Home() {
           activeView={activeView}
           setActiveView={handleNavigateGuarded}
           currentUser={currentUser}
-          onOpenSettingsWizard={() => !isEmployeeSession && setShowWizard(true)}
+          onOpenSettingsWizard={() => handleNavigateGuarded("settings")}
           onReturnToOwner={handleReturnToOwner}
           isImpersonating={Boolean(impersonatingOwner)}
           onLogout={handleLogout}
@@ -680,7 +737,7 @@ export default function Home() {
           onClose={() => setShowCommandPalette(false)}
           onNavigate={handleNavigateGuarded}
           products={products}
-          onOpenSettingsWizard={() => !isEmployeeSession && setShowWizard(true)}
+          onOpenSettingsWizard={() => handleNavigateGuarded("settings")}
           currentUser={currentUser}
           tenant={tenant}
         />

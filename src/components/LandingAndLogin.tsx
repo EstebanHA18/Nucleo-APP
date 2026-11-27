@@ -37,10 +37,17 @@ import {
   Store,
   ChevronRight,
   Cpu,
-  Smartphone
+  Smartphone,
+  UserPlus,
+  Phone,
+  Mail,
+  MapPin,
+  Send
 } from "lucide-react";
-import { TenantSettings, AppUser } from "@/types";
+import { TenantSettings, AppUser, ClientLead, BusinessVertical, ModuleKey } from "@/types";
 import { getCentralAmericaNow } from "@/lib/centralAmericaBilling";
+import { getStoredClientLeads, saveStoredClientLeads } from "@/lib/offlineStore";
+import { AVAILABLE_MODULES } from "@/lib/constants";
 import { NucleoIcon } from "./NucleoIcon";
 
 interface LandingAndLoginProps {
@@ -49,6 +56,7 @@ interface LandingAndLoginProps {
   onLoginSuccess: (user: AppUser, tenant: TenantSettings) => void;
   darkMode: boolean;
   setDarkMode: (val: boolean) => void;
+  onLeadSubmitted?: (updatedLeads: ClientLead[]) => void;
 }
 
 export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
@@ -57,6 +65,7 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
   onLoginSuccess,
   darkMode,
   setDarkMode,
+  onLeadSubmitted,
 }) => {
   // Estados de Login
   const [usernameInput, setUsernameInput] = useState("");
@@ -66,6 +75,59 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
   const [loginError, setLoginError] = useState<string | null>(null);
   const [currentTimeStr, setCurrentTimeStr] = useState("");
   const [showLoginModal, setShowLoginModal] = useState(false);
+
+  // Estados del Formulario de Solicitud de Cuenta (Futuros Clientes -> SuperAdmin)
+  const [showLeadModal, setShowLeadModal] = useState(false);
+  const [leadSubmittedSuccess, setLeadSubmittedSuccess] = useState(false);
+  const [leadFullName, setLeadFullName] = useState("");
+  const [leadPhone, setLeadPhone] = useState("");
+  const [leadEmail, setLeadEmail] = useState("");
+  const [leadBusinessName, setLeadBusinessName] = useState("");
+  const [leadVertical, setLeadVertical] = useState<BusinessVertical>("ferreteria");
+  const [leadCity, setLeadCity] = useState("Managua");
+  const [leadTaxId, setLeadTaxId] = useState("");
+  const [leadModules, setLeadModules] = useState<ModuleKey[]>(["pos", "inventory", "customers"]);
+  const [leadNotes, setLeadNotes] = useState("");
+
+  const handleToggleLeadModule = (modKey: ModuleKey) => {
+    setLeadModules((prev) =>
+      prev.includes(modKey) ? prev.filter((k) => k !== modKey) : [...prev, modKey]
+    );
+  };
+
+  const handleSubmitLeadForm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!leadFullName.trim() || !leadPhone.trim() || !leadBusinessName.trim()) return;
+
+    const currentLeads = getStoredClientLeads();
+    const newLead: ClientLead = {
+      id: `lead-${Date.now().toString(36)}`,
+      leadCode: `PROS-${Math.floor(1000 + Math.random() * 9000)}`,
+      fullName: leadFullName.trim(),
+      businessName: leadBusinessName.trim(),
+      businessVertical: leadVertical,
+      phone: leadPhone.trim(),
+      email: leadEmail.trim() || "sin-correo@cliente.ni",
+      city: leadCity.trim() || "Nicaragua",
+      taxId: leadTaxId.trim() || undefined,
+      interestedModules: leadModules.length > 0 ? leadModules : ["pos", "inventory"],
+      notes: leadNotes.trim() || undefined,
+      status: "new",
+      unreadByAdmin: true,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updated = [newLead, ...currentLeads];
+    saveStoredClientLeads(updated);
+    onLeadSubmitted?.(updated);
+    setLeadSubmittedSuccess(true);
+  };
+
+  const openLeadRequestModal = () => {
+    setShowLoginModal(false);
+    setLeadSubmittedSuccess(false);
+    setShowLeadModal(true);
+  };
 
   // Estados del Showcase Interactivo del Producto
   const [activeTab, setActiveTab] = useState<"pos" | "spatial" | "inventory" | "clinical" | "vet">("pos");
@@ -301,6 +363,16 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
               title={darkMode ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
             >
               {darkMode ? "☀️" : "🌙"}
+            </button>
+
+            {/* Botón Solicitar Cuenta */}
+            <button
+              type="button"
+              onClick={openLeadRequestModal}
+              className="hidden sm:flex px-3.5 py-2 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500 hover:text-white text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold transition-all items-center gap-1.5 cursor-pointer active:scale-95"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Solicitar Cuenta</span>
             </button>
 
             {/* Botón CTA Acceso al Sistema */}
@@ -1345,6 +1417,23 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
                 <ArrowRight className="w-4 h-4" />
               </button>
 
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-apple-blue/10 via-cyan-500/10 to-emerald-500/10 border border-apple-blue/30 text-center space-y-2">
+                <p className="text-xs font-bold text-neutral-900 dark:text-white">
+                  ¿Quieres usar Núcleo ERP en tu negocio?
+                </p>
+                <p className="text-[11px] text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                  Envíanos tus datos personales y de tu empresa para habilitarte tu propia cuenta de Propietario.
+                </p>
+                <button
+                  type="button"
+                  onClick={openLeadRequestModal}
+                  className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Solicitar Mi Cuenta de Propietario</span>
+                </button>
+              </div>
+
               <div className="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 text-[11px] text-neutral-500 space-y-1">
                 <span className="font-bold block text-neutral-700 dark:text-neutral-300">
                   Credenciales de Demostración Comercial:
@@ -1354,6 +1443,277 @@ export const LandingAndLogin: React.FC<LandingAndLoginProps> = ({
               </div>
 
             </form>
+
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 6B. MODAL: SOLICITAR CUENTA (FUTUROS CLIENTES -> ADMIN)  */}
+      {/* ======================================================== */}
+      {showLeadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-md p-4 animate-fadeIn overflow-y-auto">
+          <div className="w-full max-w-xl bg-white dark:bg-[#14151c] text-neutral-900 dark:text-neutral-100 rounded-3xl p-6 sm:p-7 shadow-2xl border border-neutral-200 dark:border-neutral-800 space-y-5 my-8">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-neutral-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-neutral-900 dark:text-white">
+                    Solicitar Cuenta Empresarial en Núcleo ERP
+                  </h3>
+                  <p className="text-[11px] text-neutral-500">
+                    Completa tus datos personales y de tu negocio para activar tu perfil de Propietario
+                  </p>
+                </div>
+              </div>
+              
+              <button
+                type="button"
+                onClick={() => setShowLeadModal(false)}
+                className="w-7 h-7 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {leadSubmittedSuccess ? (
+              <div className="py-8 text-center space-y-4 animate-fadeIn">
+                <div className="w-16 h-16 rounded-3xl bg-emerald-500/15 text-emerald-500 flex items-center justify-center mx-auto shadow-inner">
+                  <CheckCircle2 className="w-9 h-9" />
+                </div>
+                <div className="space-y-1.5 max-w-md mx-auto">
+                  <h4 className="text-lg font-black text-neutral-900 dark:text-white">
+                    ¡Solicitud Enviada con Éxito!
+                  </h4>
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                    Hemos recibido los datos de <strong>{leadBusinessName}</strong> a nombre de <strong>{leadFullName}</strong> en nuestra bandeja central de <strong>Núcleo Cloud</strong>.
+                  </p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold pt-1">
+                    Nuestro equipo configurará tu negocio y te entregará tu usuario y clave de Propietario al WhatsApp {leadPhone}.
+                  </p>
+                </div>
+                <div className="pt-3 flex justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowLeadModal(false);
+                      setLeadFullName("");
+                      setLeadPhone("");
+                      setLeadEmail("");
+                      setLeadBusinessName("");
+                      setLeadTaxId("");
+                      setLeadNotes("");
+                    }}
+                    className="px-6 py-2.5 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-bold shadow-md cursor-pointer"
+                  >
+                    Entendido, volver al inicio
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitLeadForm} className="space-y-4 text-xs">
+                
+                {/* Datos Personales del Propietario */}
+                <div className="space-y-3">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-apple-blue block">
+                    1. Datos Personales del Propietario / Solicitante
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                        Nombre y Apellidos *
+                      </label>
+                      <div className="relative">
+                        <User className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-2.5" />
+                        <input
+                          type="text"
+                          required
+                          value={leadFullName}
+                          onChange={(e) => setLeadFullName(e.target.value)}
+                          placeholder="Ej. Lic. Carlos Morales"
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 focus:outline-none focus:ring-2 focus:ring-apple-blue"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                        Teléfono / WhatsApp *
+                      </label>
+                      <div className="relative">
+                        <Phone className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-2.5" />
+                        <input
+                          type="text"
+                          required
+                          value={leadPhone}
+                          onChange={(e) => setLeadPhone(e.target.value)}
+                          placeholder="+505 8800-0000"
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 font-mono focus:outline-none focus:ring-2 focus:ring-apple-blue"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                      Correo Electrónico *
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-2.5" />
+                      <input
+                        type="email"
+                        required
+                        value={leadEmail}
+                        onChange={(e) => setLeadEmail(e.target.value)}
+                        placeholder="propietario@minegocio.com"
+                        className="w-full pl-9 pr-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 focus:outline-none focus:ring-2 focus:ring-apple-blue"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Datos Comerciales del Negocio */}
+                <div className="space-y-3 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-500 block">
+                    2. Información de tu Negocio
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                        Nombre Comercial del Negocio *
+                      </label>
+                      <div className="relative">
+                        <Building2 className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-2.5" />
+                        <input
+                          type="text"
+                          required
+                          value={leadBusinessName}
+                          onChange={(e) => setLeadBusinessName(e.target.value)}
+                          placeholder="Ej. Ferretería & Materiales San José"
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 focus:outline-none focus:ring-2 focus:ring-apple-blue"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                        Rubro / Giro Comercial *
+                      </label>
+                      <select
+                        value={leadVertical}
+                        onChange={(e) => setLeadVertical(e.target.value as BusinessVertical)}
+                        className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 font-semibold focus:outline-none focus:ring-2 focus:ring-apple-blue"
+                      >
+                        <option value="ferreteria">Ferretería & Materiales</option>
+                        <option value="comercio">Tienda / Supermercado / Retail</option>
+                        <option value="farmacia">Farmacia & Salud</option>
+                        <option value="agroservicio">Agroservicio & Veterinaria Agrícola</option>
+                        <option value="dental">Clínica Dental & Odontología</option>
+                        <option value="veterinaria">Clínica Veterinaria & Pet Shop</option>
+                        <option value="distribuidora">Distribuidora & Rutas de Reparto</option>
+                        <option value="restaurante">Restaurante / Gastronomía / Producción</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                        Ciudad / Departamento *
+                      </label>
+                      <div className="relative">
+                        <MapPin className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-2.5" />
+                        <input
+                          type="text"
+                          required
+                          value={leadCity}
+                          onChange={(e) => setLeadCity(e.target.value)}
+                          placeholder="Managua, Chinandega, León, Estelí..."
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 focus:outline-none focus:ring-2 focus:ring-apple-blue"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                        RUC / Cédula (Opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={leadTaxId}
+                        onChange={(e) => setLeadTaxId(e.target.value)}
+                        placeholder="J031000000000"
+                        className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 font-mono focus:outline-none focus:ring-2 focus:ring-apple-blue"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Selección de Módulos de Interés */}
+                <div className="space-y-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                  <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300">
+                    Paneles y herramientas que te interesan activar:
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                    {AVAILABLE_MODULES.map((mod) => {
+                      const isSel = leadModules.includes(mod.key);
+                      return (
+                        <button
+                          key={mod.key}
+                          type="button"
+                          onClick={() => handleToggleLeadModule(mod.key)}
+                          className={`p-2 rounded-xl border text-left text-[11px] flex items-center justify-between transition-all cursor-pointer ${
+                            isSel
+                              ? "bg-apple-blue/10 border-apple-blue text-apple-blue font-bold"
+                              : "bg-neutral-50 dark:bg-neutral-800/70 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400"
+                          }`}
+                        >
+                          <span className="truncate">{mod.name}</span>
+                          {isSel && <Check className="w-3 h-3 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                    Comentarios o requerimientos especiales (Opcional):
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={leadNotes}
+                    onChange={(e) => setLeadNotes(e.target.value)}
+                    placeholder="Ej. Necesito acceso para 2 cajeros, 1 encargado de bodega y facturación con impresora térmica Bluetooth..."
+                    className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 focus:outline-none focus:ring-2 focus:ring-apple-blue"
+                  />
+                </div>
+
+                <div className="pt-2 flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="submit"
+                    className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>Enviar Solicitud de Cuenta</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowLeadModal(false);
+                      setShowLoginModal(true);
+                    }}
+                    className="px-4 py-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-semibold text-xs cursor-pointer"
+                  >
+                    Volver a Login
+                  </button>
+                </div>
+
+              </form>
+            )}
 
           </div>
         </div>

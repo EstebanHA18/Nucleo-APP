@@ -94,20 +94,19 @@ export const Header: React.FC<HeaderProps> = ({
 
           <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800" />
 
-          {/* Business / Tenant Pill (Solo el propietario puede abrir el asistente de configuración) */}
+          {/* Business / Tenant Pill (Al hacer clic lleva a Ajustes del Negocio, no al Wizard inicial) */}
           <button 
             type="button"
-            onClick={isOwner ? onOpenSettingsWizard : undefined}
+            onClick={isOwner ? () => setActiveView("settings") : undefined}
             className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-all ${
               isOwner
                 ? "bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-700/80 text-neutral-700 dark:text-neutral-300 cursor-pointer"
                 : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 cursor-default"
             }`}
-            title={isOwner ? "Configuración de módulos del rubro" : tenant.name}
+            title={isOwner ? "Ir a Ajustes del Negocio" : tenant.name}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-apple-green animate-pulse" />
             <span className="truncate max-w-[170px]">{tenant.name}</span>
-            {isOwner && <ChevronDown className="w-3.5 h-3.5 text-neutral-400" />}
           </button>
         </div>
 

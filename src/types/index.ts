@@ -533,6 +533,28 @@ export interface SupportTicket {
   unreadByClient?: boolean;
 }
 
+export type LeadStatus = 'new' | 'contacted' | 'converted' | 'archived';
+
+export interface ClientLead {
+  id: string;
+  leadCode: string; // Ej: "PROS-1001"
+  fullName: string;
+  businessName: string;
+  businessVertical: BusinessVertical;
+  phone: string;
+  email: string;
+  city: string;
+  address?: string;
+  taxId?: string;
+  interestedModules: ModuleKey[];
+  notes?: string;
+  status: LeadStatus;
+  unreadByAdmin: boolean;
+  createdTenantId?: string;
+  createdUsername?: string;
+  createdAt: string;
+}
+
 // ==========================================
 // MODELOS PARA MÓDULO DE RECETAS & PRODUCCIÓN
 // ==========================================

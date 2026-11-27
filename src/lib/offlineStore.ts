@@ -10,6 +10,7 @@ import {
   ClinicalPatient,
   HREmployee,
   SupportTicket,
+  ClientLead,
   ProductionRecipe,
   ProductionOrder,
   RouteDriver,
@@ -44,6 +45,7 @@ import {
   syncDeliveryRoutesToSupabase,
   syncRouteOrdersToSupabase,
   syncSupportTicketsToSupabase,
+  syncClientLeadsToSupabase,
   isSupabaseConfigured,
 } from "./supabase";
 
@@ -320,6 +322,7 @@ const STORAGE_KEYS = {
   CLINICAL_PATIENTS: "nucleo_clinical_patients",
   HR_EMPLOYEES: "nucleo_hr_employees",
   SUPPORT_TICKETS: "nucleo_support_tickets",
+  CLIENT_LEADS: "nucleo_client_leads",
   PRODUCTION_RECIPES: "nucleo_production_recipes",
   PRODUCTION_ORDERS: "nucleo_production_orders",
   ROUTE_DRIVERS: "nucleo_route_drivers",
@@ -492,6 +495,46 @@ export const saveStoredSupportTickets = (tickets: SupportTicket[]) => {
   if (typeof window === "undefined") return;
   localStorage.setItem(STORAGE_KEYS.SUPPORT_TICKETS, JSON.stringify(tickets));
   syncSupportTicketsToSupabase(tickets);
+};
+
+export const INITIAL_CLIENT_LEADS: ClientLead[] = [
+  {
+    id: "lead-initial-1",
+    leadCode: "PROS-1001",
+    fullName: "Ing. Roberto Somarriba",
+    businessName: "Agropecuaria & Ferretería El Sembrador",
+    businessVertical: "agroservicio",
+    phone: "+505 8845-9210",
+    email: "roberto@elsembrador.ni",
+    city: "Estelí",
+    address: "Salida Sur Carretera Panamericana, Km 148",
+    taxId: "J031000084712",
+    interestedModules: ["pos", "inventory", "customers", "routes"],
+    notes: "Deseamos adquirir una cuenta para 2 cajas y control de lotes de agroquímicos con preventa en ruta.",
+    status: "new",
+    unreadByAdmin: true,
+    createdAt: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
+  },
+];
+
+export const getStoredClientLeads = (): ClientLead[] => {
+  if (typeof window === "undefined") return INITIAL_CLIENT_LEADS;
+  const raw = localStorage.getItem(STORAGE_KEYS.CLIENT_LEADS);
+  if (!raw) {
+    localStorage.setItem(STORAGE_KEYS.CLIENT_LEADS, JSON.stringify(INITIAL_CLIENT_LEADS));
+    return INITIAL_CLIENT_LEADS;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return INITIAL_CLIENT_LEADS;
+  }
+};
+
+export const saveStoredClientLeads = (leads: ClientLead[]) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEYS.CLIENT_LEADS, JSON.stringify(leads));
+  syncClientLeadsToSupabase(leads);
 };
 
 export const getStoredVetPatients = (tenantId?: string): PetPatient[] => {
@@ -1089,6 +1132,7 @@ export async function pushAllLocalDataToSupabase(explicitTenantId?: string): Pro
   const tid = explicitTenantId || activeTenant?.id || "tenant-ferreteria-1";
   const users = getStoredUsers(activeTenant);
   const tickets = getStoredSupportTickets();
+  const leads = getStoredClientLeads();
 
   const results: boolean[] = [];
 
@@ -1096,6 +1140,7 @@ export async function pushAllLocalDataToSupabase(explicitTenantId?: string): Pro
   results.push(await syncTenantsToSupabase(tenants));
   results.push(await syncUsersToSupabase(users, tid));
   results.push(await syncSupportTicketsToSupabase(tickets));
+  results.push(await syncClientLeadsToSupabase(leads));
 
   // 2. Tablas por cada tenant registrado
   for (const t of tenants) {

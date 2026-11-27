@@ -15,6 +15,7 @@ import {
   DeliveryRoute,
   RouteCustomerOrder,
   SupportTicket,
+  ClientLead,
 } from "@/types";
 
 const DEFAULT_NUCLEO_SUPABASE_URL = "https://dpqwetqzqtzhccehogjy.supabase.co";
@@ -637,6 +638,38 @@ export async function syncSupportTicketsToSupabase(tickets: SupportTicket[]): Pr
   }
 }
 
+export async function syncClientLeadsToSupabase(leads: ClientLead[]): Promise<boolean> {
+  if (!isSupabaseConfigured() || leads.length === 0) return false;
+  try {
+    const client = getSupabaseClient();
+    const rows = leads.map((l) => ({
+      id: l.id,
+      ticket_code: l.leadCode,
+      tenant_id: "tenant-ferreteria-1",
+      tenant_name: l.businessName,
+      type: "client_lead",
+      subject: `Solicitud de Cuenta: ${l.businessName} (${l.fullName})`,
+      priority: "alta",
+      status: l.status === "converted" ? "resolved" : l.status === "contacted" ? "in_progress" : "open",
+      unread_by_admin: Boolean(l.unreadByAdmin),
+      unread_by_client: false,
+      messages: [],
+      raw_data: { ...l, __entity: "client_lead" },
+      updated_at: new Date().toISOString(),
+    }));
+    const { error } = await client.from("nucleo_support_tickets").upsert(rows, { onConflict: "id" });
+    if (error) {
+      console.warn("[Núcleo Cloud] Error syncing client leads:", error.message);
+      return false;
+    }
+    markSupabaseSynced();
+    return true;
+  } catch (e) {
+    console.warn("[Núcleo Cloud] Exception syncing client leads:", e);
+    return false;
+  }
+}
+
 // ============================================================================
 // DESCARGA / HIDRATACIÓN MULTI-TENANT DESDE SUPABASE AL INICIAR O CAMBIAR TENANT
 // ============================================================================
@@ -657,6 +690,7 @@ export interface TenantCloudSnapshot {
   deliveryRoutes?: DeliveryRoute[];
   routeOrders?: RouteCustomerOrder[];
   supportTickets?: SupportTicket[];
+  clientLeads?: ClientLead[];
 }
 
 export async function fetchTenantSnapshotFromSupabase(tenantId: string): Promise<TenantCloudSnapshot | null> {
@@ -710,6 +744,10 @@ export async function fetchTenantSnapshotFromSupabase(tenantId: string): Promise
 
     markSupabaseSynced();
 
+    const allTicketRows = ticketsRes.data || [];
+    const regularTicketRows = allTicketRows.filter((r: any) => r?.raw_data && r.raw_data.__entity !== "client_lead");
+    const leadRows = allTicketRows.filter((r: any) => r?.raw_data && r.raw_data.__entity === "client_lead");
+
     return {
       tenants: extract<TenantSettings>(tenantsRes.data),
       users: extract<AppUser>(usersRes.data),
@@ -725,7 +763,8 @@ export async function fetchTenantSnapshotFromSupabase(tenantId: string): Promise
       routeDrivers: extract<RouteDriver>(driversRes.data),
       deliveryRoutes: extract<DeliveryRoute>(routesRes.data),
       routeOrders: extract<RouteCustomerOrder>(routeOrdersRes.data),
-      supportTickets: extract<SupportTicket>(ticketsRes.data),
+      supportTickets: extract<SupportTicket>(regularTicketRows),
+      clientLeads: extract<ClientLead>(leadRows),
     };
   } catch (e) {
     console.warn("[Supabase] Could not fetch snapshot from cloud:", e);
