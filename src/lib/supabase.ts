@@ -18,6 +18,7 @@ import {
 } from "@/types";
 
 const DEFAULT_NUCLEO_SUPABASE_URL = "https://dpqwetqzqtzhccehogjy.supabase.co";
+const DEFAULT_NUCLEO_SUPABASE_ANON_KEY = "sb_publishable_Hc8L-KIuX_PDoxTpYqLywA_pbPN9Z64";
 const SUPABASE_URL_STORAGE_KEY = "nucleo_supabase_custom_url";
 const SUPABASE_KEY_STORAGE_KEY = "nucleo_supabase_custom_anon_key";
 const SUPABASE_LAST_SYNC_KEY = "nucleo_supabase_last_sync";
@@ -26,8 +27,24 @@ let cachedClient: SupabaseClient | null = null;
 let cachedKeySignature = "";
 
 export function getSupabaseCredentials(): { url: string; anonKey: string; isConfigured: boolean; source: "env" | "custom" | "none" } {
+  if (typeof window !== "undefined") {
+    try {
+      const customUrl = localStorage.getItem(SUPABASE_URL_STORAGE_KEY) || "";
+      const customKey = localStorage.getItem(SUPABASE_KEY_STORAGE_KEY) || "";
+      if (
+        customUrl.startsWith("https://") &&
+        customUrl.includes(".supabase.co") &&
+        customKey.length > 15
+      ) {
+        return { url: customUrl.trim(), anonKey: customKey.trim(), isConfigured: true, source: "custom" };
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }
+
   const envUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_NUCLEO_SUPABASE_URL;
-  const envKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  const envKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_NUCLEO_SUPABASE_ANON_KEY;
 
   if (
     envUrl &&
@@ -38,27 +55,11 @@ export function getSupabaseCredentials(): { url: string; anonKey: string; isConf
     return { url: envUrl.trim(), anonKey: envKey.trim(), isConfigured: true, source: "env" };
   }
 
-  if (typeof window !== "undefined") {
-    try {
-      const customUrl = localStorage.getItem(SUPABASE_URL_STORAGE_KEY) || DEFAULT_NUCLEO_SUPABASE_URL;
-      const customKey = localStorage.getItem(SUPABASE_KEY_STORAGE_KEY) || "";
-      if (
-        customUrl.startsWith("https://") &&
-        customUrl.includes(".supabase.co") &&
-        customKey.length > 20
-      ) {
-        return { url: customUrl.trim(), anonKey: customKey.trim(), isConfigured: true, source: "custom" };
-      }
-    } catch {
-      // ignore storage errors
-    }
-  }
-
   return {
     url: DEFAULT_NUCLEO_SUPABASE_URL,
-    anonKey: "your-anon-key",
-    isConfigured: false,
-    source: "none",
+    anonKey: DEFAULT_NUCLEO_SUPABASE_ANON_KEY,
+    isConfigured: true,
+    source: "env",
   };
 }
 
