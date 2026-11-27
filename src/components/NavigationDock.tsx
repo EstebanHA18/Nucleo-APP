@@ -278,7 +278,7 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
                   ? "bg-apple-blue text-white shadow-md shadow-apple-blue/30 scale-105"
                   : "text-neutral-500 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
               }`}
-              title="Ajustes de Factura, Plan, Módulos y Supabase"
+              title="Ajustes de Factura, Plan, Módulos y Núcleo Cloud"
             >
               <Sliders className="w-3.5 h-3.5" />
             </button>

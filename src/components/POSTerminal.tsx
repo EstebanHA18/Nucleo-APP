@@ -1429,7 +1429,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
                 </span>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
                   <Database className="w-3 h-3" />
-                  <span>{isSupabaseConfigured() ? "Supabase Cloud" : "Base Local"}</span>
+                  <span>{isSupabaseConfigured() ? "Núcleo Cloud" : "Base Local"}</span>
                 </span>
               </div>
               <span className="text-[11px] text-neutral-500 mt-0.5 block">
@@ -1670,7 +1670,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
                         </h3>
                       </div>
                       <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">
-                        ● Guardada en Historial Local & Supabase Cloud
+                        ● Guardada en Historial Local & Núcleo Cloud
                       </span>
                     </div>
 

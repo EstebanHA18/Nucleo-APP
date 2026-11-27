@@ -304,7 +304,7 @@ export const AppleWizard: React.FC<AppleWizardProps> = ({ onComplete }) => {
                     <ShieldCheck className="w-4 h-4" />
                   </div>
                   <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                    Tu usuario tendrá privilegios de <strong>SuperAdmin Local</strong> con cifrado en Supabase Auth.
+                    Tu usuario tendrá privilegios de <strong>Propietario del Negocio</strong> con cifrado en Núcleo Cloud.
                   </p>
                 </div>
               </div>

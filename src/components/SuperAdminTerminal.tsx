@@ -124,7 +124,7 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
         "  billing-status           - Check billing cycle & pro-rata calculations (Cut: 10, Due: 05)",
         "  set-price <id> <amount>  - Override monthly subscription rate in USD",
         "  reset-pass <user> <pass> - Reset password for any account",
-        "  sync-supabase            - Push all multi-tenant tables and invoices to Supabase Cloud",
+        "  sync-cloud               - Push all multi-tenant tables and invoices to Núcleo Cloud",
         "  status                   - Check system metrics, memory & timezone",
         "  clear                    - Clear terminal console"
       );
@@ -174,17 +174,17 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
       } else {
         newHistory.push("ERROR: Syntax: reset-pass <username> <new_password>");
       }
-    } else if (cmd === "sync-supabase") {
-      newHistory.push("INITIATING FULL MULTI-TENANT SUPABASE CLOUD SYNC (15 TABLES)...");
+    } else if (cmd === "sync-cloud" || cmd === "sync-supabase") {
+      newHistory.push("INITIATING FULL MULTI-TENANT NÚCLEO CLOUD SYNC (15 TABLES)...");
       pushAllLocalDataToSupabase(currentTenant.id).then((res) => {
-        setCommandHistory((prev) => [...prev, `[SUPABASE] ${res.message}`]);
+        setCommandHistory((prev) => [...prev, `[NÚCLEO CLOUD] ${res.message}`]);
       });
     } else if (cmd === "status") {
       newHistory.push(
         "SYSTEM METRICS:",
         "  Kernel: Núcleo Cloud OS 3.5.0-LTS",
         "  Timezone: America/Managua (UTC-6)",
-        `  Supabase Cloud Engine: ${isSupabaseConfigured() ? "CONNECTED (Multi-Tenant Sync Active)" : "LOCAL OFFLINE-FIRST MODE"}`,
+        `  Núcleo Cloud Engine: ${isSupabaseConfigured() ? "CONNECTED (Multi-Tenant Sync Active)" : "LOCAL OFFLINE-FIRST MODE"}`,
         "  Offline LocalStore: Synchronized (100% Operational)",
         `  Active Tenants: ${allTenants.length}`,
         `  Registered System Users: ${allUsers.length}`

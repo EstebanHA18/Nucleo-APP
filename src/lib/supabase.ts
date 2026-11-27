@@ -737,7 +737,7 @@ export async function testSupabaseConnection(): Promise<{ ok: boolean; message: 
   if (!isSupabaseConfigured()) {
     return {
       ok: false,
-      message: "Credenciales de Supabase no configuradas. Ingresa tu Project URL y Anon Key.",
+      message: "Credenciales de Núcleo Cloud no configuradas.",
     };
   }
   try {
@@ -746,18 +746,18 @@ export async function testSupabaseConnection(): Promise<{ ok: boolean; message: 
     if (error) {
       return {
         ok: false,
-        message: `Conectado al servidor Supabase, pero falta ejecutar el script SQL de tablas (${error.message}).`,
+        message: `Conectado al servidor Núcleo Cloud, pendiente inicialización de tablas (${error.message}).`,
       };
     }
     markSupabaseSynced();
     return {
       ok: true,
-      message: "¡Conexión exitosa! Las tablas Multi-Tenant de Supabase están activas y listas.",
+      message: "¡Conexión exitosa! La base de datos Multi-Tenant de Núcleo Cloud está activa y sincronizada.",
     };
   } catch (e: any) {
     return {
       ok: false,
-      message: `Error de red al conectar con Supabase: ${e?.message || "Verifica la URL y Anon Key"}`,
+      message: `Error de red al conectar con Núcleo Cloud: ${e?.message || "Verifica tu conexión"}`,
     };
   }
 }

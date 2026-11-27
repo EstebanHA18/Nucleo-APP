@@ -696,7 +696,7 @@ export default function Home() {
           <span>
             {isOnline
               ? isSupabaseConfigured()
-                ? "Sincronizado con Supabase Cloud"
+                ? "Sincronizado con Núcleo Cloud"
                 : "Modo Local Offline-First Activo"
               : "Modo Offline Activo"}
           </span>

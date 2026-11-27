@@ -1713,7 +1713,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
             </div>
           </div>
 
-          {/* Panel de Base de Datos Real Multi-Tenant en Supabase Cloud */}
+          {/* Panel de Base de Datos Real Multi-Tenant en Núcleo Cloud */}
           <div className="p-6 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-neutral-200/80 dark:border-neutral-800">
               <div className="flex items-center gap-3">
@@ -1723,18 +1723,18 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
-                      Base de Datos Multi-Tenant en Supabase Cloud
+                      Sincronización Multi-Tenant en Núcleo Cloud
                     </h3>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
                       getSupabaseCredentials().isConfigured
                         ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                         : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
                     }`}>
-                      {getSupabaseCredentials().isConfigured ? "● CONECTADO" : "○ MODO LOCAL"}
+                      {getSupabaseCredentials().isConfigured ? "● NÚCLEO CLOUD ACTIVO" : "○ MODO LOCAL"}
                     </span>
                   </div>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                    Sincroniza automáticamente todos los módulos (POS, Facturas, Inventario, Lotes, Caja, Clientes, Salud, RRHH, Producción, Rutas y Ajustes) aislados por negocio (<code className="font-mono">{tenant.id}</code>).
+                    Respaldo automático en la nube para todos los módulos (POS, Facturas, Inventario, Lotes, Caja, Clientes, Salud, RRHH, Producción, Rutas y Ajustes) aislados por negocio (<code className="font-mono">{tenant.id}</code>).
                   </p>
                 </div>
               </div>
@@ -1744,34 +1744,6 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                   Última sincr.: {new Date(lastSyncIso).toLocaleTimeString("es-NI")}
                 </span>
               )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div>
-                <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                  Supabase Project URL (<code className="font-mono">NEXT_PUBLIC_SUPABASE_URL</code>):
-                </label>
-                <input
-                  type="text"
-                  value={supaUrl}
-                  onChange={(e) => setSupaUrl(e.target.value)}
-                  placeholder="https://xyzcompany.supabase.co"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-apple-blue"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                  Supabase Anon / Public Key (<code className="font-mono">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>):
-                </label>
-                <input
-                  type="password"
-                  value={supaAnonKey}
-                  onChange={(e) => setSupaAnonKey(e.target.value)}
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-apple-blue"
-                />
-              </div>
             </div>
 
             {supaFeedback && (
@@ -1785,10 +1757,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
               </div>
             )}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
               <span className="text-[11px] text-neutral-400">
-                Archivo SQL listo para pegar en el SQL Editor de Supabase:{" "}
-                <code className="font-mono text-apple-blue">supabase/migrations/20261107_nucleo_schema.sql</code>
+                Estado del motor: <strong>Núcleo Cloud Multi-Tenant Engine v3.5</strong>
               </span>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -1799,7 +1770,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                   className="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isTestingSupa ? "animate-spin" : ""}`} />
-                  <span>{isTestingSupa ? "Verificando..." : "Guardar y Probar Conexión"}</span>
+                  <span>{isTestingSupa ? "Verificando..." : "Verificar Conexión Núcleo Cloud"}</span>
                 </button>
 
                 <button
@@ -1809,7 +1780,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                   className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
                 >
                   <Database className="w-3.5 h-3.5" />
-                  <span>{isSyncingSupa ? "Sincronizando 15 Tablas..." : "Sincronizar Todo a Supabase Ahora"}</span>
+                  <span>{isSyncingSupa ? "Sincronizando con Núcleo Cloud..." : "Sincronizar Todo a Núcleo Cloud"}</span>
                 </button>
               </div>
             </div>

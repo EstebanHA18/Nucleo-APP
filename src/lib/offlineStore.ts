@@ -1080,7 +1080,7 @@ export async function pushAllLocalDataToSupabase(explicitTenantId?: string): Pro
     return {
       success: false,
       syncedTables: 0,
-      message: "Supabase no está configurado aún. Añade la URL y Anon Key de tu proyecto.",
+      message: "Núcleo Cloud está operando en modo local Offline-First.",
     };
   }
 
@@ -1139,7 +1139,7 @@ export async function pushAllLocalDataToSupabase(explicitTenantId?: string): Pro
     syncedTables: okCount,
     message:
       okCount > 0
-        ? `Sincronización completada con éxito (${okCount} colecciones sincronizadas en Supabase Cloud).`
-        : "No se pudieron sincronizar las tablas. Verifica haber ejecutado el script SQL en Supabase.",
+        ? `Sincronización completada con éxito (${okCount} colecciones sincronizadas en Núcleo Cloud).`
+        : "No se pudieron sincronizar las colecciones en Núcleo Cloud.",
   };
 }

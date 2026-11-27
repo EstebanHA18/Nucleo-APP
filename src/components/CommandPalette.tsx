@@ -66,7 +66,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { id: "production", name: "Producción, Recetas (BOM) & Órdenes", icon: <Layers className="w-4 h-4 text-rose-500" />, category: "Operaciones" },
     { id: "routes", name: "Rutas de Reparto GPS, Mapa & Conductores", icon: <MapPin className="w-4 h-4 text-indigo-500" />, category: "Logística" },
     { id: "spatial", name: "Ver Red Espacial (Topología de Nodos)", icon: <Network className="w-4 h-4 text-apple-teal" />, category: "Dirección" },
-    { id: "settings", name: "Ajustes de Factura, Impresora Bluetooth y Supabase", icon: <Sliders className="w-4 h-4 text-apple-blue" />, category: "Configuración" },
+    { id: "settings", name: "Ajustes de Factura, Impresora Bluetooth y Núcleo Cloud", icon: <Sliders className="w-4 h-4 text-apple-blue" />, category: "Configuración" },
     { id: "terminal", name: "Abrir SuperAdmin Terminal (God Mode)", icon: <Terminal className="w-4 h-4 text-apple-orange" />, category: "SuperAdmin" },
     { id: "wizard", name: "Reconfigurar Negocio / Business Builder", icon: <Sliders className="w-4 h-4 text-apple-pink" />, category: "Configuración" },
   ];

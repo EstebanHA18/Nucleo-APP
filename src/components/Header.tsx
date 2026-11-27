@@ -135,18 +135,18 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Right: Cloud Status Pill, Owner Tools, Dark Mode, Profile */}
         <div className="flex items-center gap-2">
           
-          {/* Status Pill (Online + Supabase status) */}
+          {/* Status Pill (Online + Núcleo Cloud status) */}
           <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium ${
             isOnline 
               ? "bg-apple-green/10 text-apple-green dark:bg-apple-green/20" 
               : "bg-apple-orange/10 text-apple-orange dark:bg-apple-orange/20"
-          }`} title={supabaseReady ? "Sincronización Multi-Tenant con Supabase Activa" : "Modo Local Offline-First Activo"}>
+          }`} title={supabaseReady ? "Sincronización Multi-Tenant con Núcleo Cloud Activa" : "Modo Local Offline-First Activo"}>
             {supabaseReady ? (
               <Database className="w-3 h-3 text-apple-green" />
             ) : (
               <span className="w-1.5 h-1.5 rounded-full bg-apple-green" />
             )}
-            <span>{isOnline ? (supabaseReady ? "Supabase Cloud" : "En Línea") : "Offline"}</span>
+            <span>{isOnline ? (supabaseReady ? "Núcleo Cloud" : "En Línea") : "Offline"}</span>
           </div>
 
           {/* Si es Dueño: Botón directo a 'Gestión de Usuarios' */}
