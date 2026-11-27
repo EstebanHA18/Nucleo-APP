@@ -96,11 +96,13 @@ export interface Customer {
 
 export interface Sale {
   id: string;
+  tenantId?: string;
   invoiceNumber: string;
   customer?: Customer;
   customerName?: string;
   customerTaxId?: string;
   paymentMethod: 'cash' | 'card' | 'transfer';
+  paymentReference?: string; // Número de voucher o referencia bancaria
   amountPaid: number;      // Con cuánto pagó el cliente
   changeGiven: number;     // Vuelto entregado
   items: CartItem[];
@@ -114,6 +116,9 @@ export interface Sale {
   createdAt: string;
   cashierName?: string;
   sellerName?: string;
+  cashSessionId?: string;
+  status?: 'completed' | 'voided';
+  reprintCount?: number;
   isOfflineSynced?: boolean;
 }
 

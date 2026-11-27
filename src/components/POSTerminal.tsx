@@ -24,24 +24,36 @@ import {
   AlertCircle,
   FileText,
   CheckCircle2,
-  Bluetooth
+  Bluetooth,
+  Eye,
+  History,
+  Copy,
+  Database,
+  Filter,
+  Calendar
 } from "lucide-react";
-import { Product, Customer, CartItem, Sale, TenantSettings, Batch, CashRegisterSession, PendingBill } from "@/types";
+import { Product, Customer, CartItem, Sale, TenantSettings, Batch, CashRegisterSession, PendingBill, AppUser } from "@/types";
 import { 
   recordSaleLocally, 
   getBatchExpirationStatus, 
   getCurrentCashSession, 
   openCashSession, 
   closeCashSession,
-  getCurrentUser
+  getCurrentUser,
+  getStoredSales,
+  saveStoredSales
 } from "@/lib/offlineStore";
 import { printReceiptViaBluetooth } from "@/lib/bluetoothPrinter";
 import { printThermalReceipt } from "@/lib/thermalPrintService";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 interface POSTerminalProps {
   tenant: TenantSettings;
   products: Product[];
   customers: Customer[];
+  sales?: Sale[];
+  onUpdateSales?: (sales: Sale[]) => void;
+  currentUser?: AppUser | null;
   onSaleComplete: (sale: Sale, updatedProducts: Product[], updatedCustomers: Customer[]) => void;
   pendingBill?: PendingBill | null;
   onClearPendingBill?: () => void;
@@ -51,11 +63,24 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
   tenant,
   products,
   customers,
+  sales: propSales,
+  onUpdateSales,
+  currentUser: propCurrentUser,
   onSaleComplete,
   pendingBill,
   onClearPendingBill,
 }) => {
-  const currentUser = getCurrentUser();
+  const currentUser = propCurrentUser || getCurrentUser();
+  const isOwnerOrAdmin = currentUser?.role === "owner" || currentUser?.role === "superadmin";
+
+  // Modo del terminal POS: Mostrador de Cobro vs Visualizador e Historial de Facturas
+  const [posViewMode, setPosViewMode] = useState<"register" | "invoices">("register");
+  const [localSales, setLocalSales] = useState<Sale[]>(() => propSales || getStoredSales(tenant.id));
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("");
+  const [invoicePaymentFilter, setInvoicePaymentFilter] = useState<"all" | "cash" | "card" | "transfer">("all");
+  const [invoiceDateFilter, setInvoiceDateFilter] = useState<"today" | "week" | "all">("all");
+  const [selectedInvoiceForView, setSelectedInvoiceForView] = useState<Sale | null>(null);
+  const [markAsReprintCopy, setMarkAsReprintCopy] = useState<boolean>(true);
 
   // Estados de catálogo y carrito
   const [searchQuery, setSearchQuery] = useState("");
@@ -120,10 +145,15 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
     }
   };
 
-  // Sincronizar sesión al montar
+  // Sincronizar sesión y facturas al montar o cambiar de negocio
   useEffect(() => {
-    setCashSession(getCurrentCashSession());
-  }, []);
+    setCashSession(getCurrentCashSession(tenant.id));
+    const currentSales = propSales || getStoredSales(tenant.id);
+    setLocalSales(currentSales);
+    if (currentSales.length > 0 && !selectedInvoiceForView) {
+      setSelectedInvoiceForView(currentSales[0]);
+    }
+  }, [tenant.id, propSales]);
 
   // Prellenar carrito y datos si viene de cobrar una consulta médica/veterinaria
   useEffect(() => {
@@ -430,7 +460,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
   const handleConfirmOpenCash = (e: React.FormEvent) => {
     e.preventDefault();
     const fund = parseFloat(openingFundInput) || 0;
-    const newSession = openCashSession(fund, currentUser?.fullName || "Cajero Mostrador");
+    const newSession = openCashSession(fund, currentUser?.fullName || "Cajero Mostrador", tenant.id);
     setCashSession(newSession);
     setShowOpenCashModal(false);
     playBeep(1100, 0.15);
@@ -440,12 +470,85 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
   const handleConfirmCloseCash = (e: React.FormEvent) => {
     e.preventDefault();
     const counted = parseFloat(countedCashInput) || 0;
-    const closed = closeCashSession(counted, currentUser?.fullName || "Cajero Mostrador", closeNotesInput);
+    const closed = closeCashSession(counted, currentUser?.fullName || "Cajero Mostrador", closeNotesInput, tenant.id);
     setCashSession(closed);
     setShowCloseCashModal(false);
     setLastClosedSessionReceipt(closed);
     playBeep(880, 0.2);
   };
+
+  // Incrementar contador de reimpresión y guardar en Supabase
+  const handleRegisterReprint = (invoice: Sale) => {
+    const updatedList = localSales.map((s) => {
+      if (s.id === invoice.id) {
+        return { ...s, reprintCount: (s.reprintCount || 0) + 1, isOfflineSynced: isSupabaseConfigured() };
+      }
+      return s;
+    });
+    setLocalSales(updatedList);
+    saveStoredSales(updatedList, tenant.id);
+    onUpdateSales?.(updatedList);
+    const updatedTarget = updatedList.find((s) => s.id === invoice.id) || invoice;
+    if (selectedInvoiceForView?.id === invoice.id) {
+      setSelectedInvoiceForView(updatedTarget);
+    }
+    if (lastSale?.id === invoice.id) {
+      setLastSale(updatedTarget);
+    }
+  };
+
+  // Duplicar una factura histórica al carrito actual
+  const handleDuplicateInvoiceToCart = (invoice: Sale) => {
+    if (cashSession.status === "closed") {
+      alert("⚠️ La caja está cerrada. Debes aperturar el turno antes de cargar una orden al carrito.");
+      setShowOpenCashModal(true);
+      return;
+    }
+    setCart(invoice.items.map((it) => ({ ...it })));
+    if (invoice.customerName) {
+      setInvoiceCustomerName(invoice.customerName);
+    }
+    if (invoice.customerTaxId) {
+      setInvoiceCustomerTaxId(invoice.customerTaxId);
+    }
+    setPosViewMode("register");
+    playBeep(1020, 0.1);
+  };
+
+  // Filtrado de facturas en el Visualizador de Caja
+  const filteredInvoices = localSales.filter((sale) => {
+    const q = invoiceSearchQuery.toLowerCase().trim();
+    const matchesSearch =
+      !q ||
+      sale.invoiceNumber.toLowerCase().includes(q) ||
+      (sale.customerName && sale.customerName.toLowerCase().includes(q)) ||
+      (sale.customer?.name && sale.customer.name.toLowerCase().includes(q)) ||
+      (sale.customerTaxId && sale.customerTaxId.toLowerCase().includes(q)) ||
+      (sale.cashierName && sale.cashierName.toLowerCase().includes(q)) ||
+      sale.items.some((it) => it.product.name.toLowerCase().includes(q) || it.product.sku.toLowerCase().includes(q));
+
+    const matchesPay = invoicePaymentFilter === "all" || sale.paymentMethod === invoicePaymentFilter;
+
+    let matchesDate = true;
+    if (invoiceDateFilter === "today") {
+      const todayPrefix = new Date().toISOString().split("T")[0];
+      matchesDate = sale.createdAt.startsWith(todayPrefix);
+    } else if (invoiceDateFilter === "week") {
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      matchesDate = new Date(sale.createdAt).getTime() >= sevenDaysAgo;
+    }
+
+    return matchesSearch && matchesPay && matchesDate;
+  });
+
+  const totalFilteredSalesAmount = filteredInvoices.reduce((acc, s) => acc + s.total, 0);
+  const totalFilteredCashAmount = filteredInvoices
+    .filter((s) => s.paymentMethod === "cash")
+    .reduce((acc, s) => acc + s.total, 0);
+  const totalFilteredBankAmount = filteredInvoices
+    .filter((s) => s.paymentMethod !== "cash")
+    .reduce((acc, s) => acc + s.total, 0);
+  const totalFilteredProfitAmount = filteredInvoices.reduce((acc, s) => acc + (s.profit || 0), 0);
 
   // Finalizar Cobro y Emisión de Factura
   const handleCheckout = () => {
@@ -472,11 +575,13 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
 
     const saleRecord: Sale = {
       id: "sale-" + Date.now(),
+      tenantId: tenant.id,
       invoiceNumber: "FAC-" + Math.floor(100000 + Math.random() * 900000),
       customer: finalCustomer,
       customerName: finalCustomer.name,
       customerTaxId: finalCustomer.taxId,
       paymentMethod,
+      paymentReference: paymentMethod !== "cash" && paymentReference.trim() ? paymentReference.trim() : undefined,
       amountPaid: numericTendered,
       changeGiven: changeDue,
       items: [...cart],
@@ -489,19 +594,27 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
       exchangeRate: tenant.exchangeRate,
       createdAt: new Date().toISOString(),
       cashierName: currentUser?.fullName || "Cajero Mostrador",
+      cashSessionId: cashSession.id,
+      status: "completed",
+      reprintCount: 0,
+      isOfflineSynced: isSupabaseConfigured(),
     };
 
-    // 1. Descontar inventario automáticamente y registrar la venta
-    const { updatedProducts, updatedCustomers } = recordSaleLocally(saleRecord);
+    // 1. Descontar inventario automáticamente, registrar la venta y sincronizar con Supabase
+    const { updatedProducts, updatedCustomers, updatedSales } = recordSaleLocally(saleRecord, tenant.id);
+    setLocalSales(updatedSales);
+    setSelectedInvoiceForView(saleRecord);
+    onUpdateSales?.(updatedSales);
 
     // 2. Refrescar sesión de caja activa
-    setCashSession(getCurrentCashSession());
+    setCashSession(getCurrentCashSession(tenant.id));
 
     playBeep(1200, 0.12);
     setLastSale(saleRecord);
     setShowReceiptModal(true);
     setCart([]);
     setCashTendered("");
+    setPaymentReference("");
     setBtPrintMessage(null);
 
     // Impresión automática por Bluetooth si está habilitada en Ajustes
@@ -558,7 +671,47 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Selector de Pestaña en Caja: Mostrador vs Visualizador de Facturas */}
+          <div className="flex items-center p-1 rounded-2xl bg-neutral-100 dark:bg-neutral-800/90 border border-neutral-200/80 dark:border-neutral-700/70">
+            <button
+              type="button"
+              onClick={() => setPosViewMode("register")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                posViewMode === "register"
+                  ? "bg-apple-blue text-white shadow-xs"
+                  : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+              }`}
+            >
+              <Receipt className="w-3.5 h-3.5" />
+              <span>Mostrador POS</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!selectedInvoiceForView && localSales.length > 0) {
+                  setSelectedInvoiceForView(localSales[0]);
+                }
+                setPosViewMode("invoices");
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                posViewMode === "invoices"
+                  ? "bg-apple-blue text-white shadow-xs"
+                  : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+              }`}
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>Facturas Emitidas</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                posViewMode === "invoices"
+                  ? "bg-white/20 text-white"
+                  : "bg-apple-blue/10 text-apple-blue"
+              }`}>
+                {localSales.length}
+              </span>
+            </button>
+          </div>
+
           {cashSession.status === "open" ? (
             <button
               type="button"
@@ -566,7 +719,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
                 setCountedCashInput(cashSession.expectedCashInDrawer.toString());
                 setShowCloseCashModal(true);
               }}
-              className="px-3.5 py-1.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-semibold flex items-center gap-1.5 transition-all border border-neutral-200 dark:border-neutral-700"
+              className="px-3.5 py-1.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-semibold flex items-center gap-1.5 transition-all border border-neutral-200 dark:border-neutral-700 cursor-pointer"
             >
               <Calculator className="w-3.5 h-3.5 text-apple-blue" />
               <span>Cerrar Caja / Arqueo</span>
@@ -575,7 +728,7 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
             <button
               type="button"
               onClick={() => setShowOpenCashModal(true)}
-              className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+              className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
             >
               <Unlock className="w-3.5 h-3.5" />
               <span>Aperturar Caja</span>
@@ -603,7 +756,8 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
         </div>
       )}
 
-      {/* Layout Principal: Izquierda Catálogo de Productos / Derecha Carrito & Facturación */}
+      {/* Layout Principal: Mostrador de Cobro vs Visualizador e Historial de Facturas */}
+      {posViewMode === "register" ? (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* ======================================================== */}
@@ -739,9 +893,11 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
                         <div className="font-mono text-xs font-bold text-apple-blue">
                           C$ {p.salePrice.toFixed(2)}
                         </div>
-                        <span className="text-[9px] text-neutral-400 font-mono">
-                          Costo: C$ {p.costPrice.toFixed(2)}
-                        </span>
+                        {isOwnerOrAdmin && (
+                          <span className="text-[9px] text-neutral-400 font-mono">
+                            Costo: C$ {p.costPrice.toFixed(2)}
+                          </span>
+                        )}
                       </div>
                       <div className="w-6 h-6 rounded-lg bg-apple-blue/10 dark:bg-apple-blue/20 text-apple-blue flex items-center justify-center">
                         <Plus className="w-3.5 h-3.5" />
@@ -891,9 +1047,11 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
                             <span className="text-[10px] text-neutral-500 font-mono">
                               C$ {item.unitPrice.toFixed(2)} / {item.unit}
                             </span>
-                            <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-mono">
-                              +C$ {((item.unitPrice - item.product.costPrice) * item.quantity).toFixed(2)} ganancia
-                            </span>
+                            {isOwnerOrAdmin && (
+                              <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-mono">
+                                +C$ {((item.unitPrice - item.product.costPrice) * item.quantity).toFixed(2)} ganancia
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -1138,16 +1296,18 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
                 <span className="font-mono">C$ {tax.toFixed(2)}</span>
               </div>
               
-              {/* Cálculo de Ganancia Real */}
-              <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 font-semibold p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                <span className="flex items-center gap-1">
-                  <span>Ganancia / Margen Neto:</span>
-                  <span className="text-[10px] font-mono text-emerald-500 font-normal">
-                    ({marginPercentage.toFixed(1)}%)
+              {/* Cálculo de Ganancia Real (Visible exclusivamente para el Propietario / SuperAdmin) */}
+              {isOwnerOrAdmin && (
+                <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 font-semibold p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                  <span className="flex items-center gap-1">
+                    <span>Ganancia / Margen Neto:</span>
+                    <span className="text-[10px] font-mono text-emerald-500 font-normal">
+                      ({marginPercentage.toFixed(1)}%)
+                    </span>
                   </span>
-                </span>
-                <span className="font-mono font-bold">+C$ {netProfit.toFixed(2)}</span>
-              </div>
+                  <span className="font-mono font-bold">+C$ {netProfit.toFixed(2)}</span>
+                </div>
+              )}
 
               {/* Total a pagar */}
               <div className="flex justify-between items-baseline pt-2 border-t border-neutral-200/80 dark:border-neutral-800">
@@ -1182,8 +1342,549 @@ export const POSTerminal: React.FC<POSTerminalProps> = ({
               </span>
             </button>
           </div>
+
+          {/* Widget de Últimas Facturas en Caja (Acceso Rápido para Reimprimir / Ver) */}
+          <div className="p-4 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <History className="w-4 h-4 text-apple-blue" />
+                <h4 className="text-xs font-bold text-neutral-900 dark:text-white">
+                  Últimas Facturas en Caja
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPosViewMode("invoices")}
+                className="text-[11px] font-semibold text-apple-blue hover:underline cursor-pointer flex items-center gap-1"
+              >
+                <span>Abrir Visualizador ({localSales.length})</span>
+              </button>
+            </div>
+
+            {localSales.length === 0 ? (
+              <div className="py-4 text-center text-[11px] text-neutral-400">
+                Aún no se han emitido facturas en este negocio.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {localSales.slice(0, 3).map((inv) => (
+                  <div
+                    key={inv.id}
+                    className="p-2.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/60 flex items-center justify-between gap-2 text-xs"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-neutral-900 dark:text-white">
+                          {inv.invoiceNumber}
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-apple-blue/10 text-apple-blue font-mono uppercase">
+                          {inv.paymentMethod === "cash" ? "Efectivo" : inv.paymentMethod === "card" ? "Tarjeta" : "Transf."}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-neutral-500 truncate block">
+                        {inv.customerName || inv.customer?.name || "Cliente de Contado"} •{" "}
+                        {new Date(inv.createdAt).toLocaleTimeString("es-NI", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-mono font-bold text-apple-blue">
+                        C$ {inv.total.toFixed(2)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLastSale(inv);
+                          setShowReceiptModal(true);
+                        }}
+                        className="p-1.5 rounded-xl bg-white dark:bg-neutral-700 hover:bg-apple-blue hover:text-white text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-600 transition-colors cursor-pointer"
+                        title="Visualizar o Reimprimir Factura"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
+      ) : (
+        /* ======================================================== */
+        /* MODO 2: VISUALIZADOR E HISTORIAL DE FACTURAS EN CAJA     */
+        /* ======================================================== */
+        <div className="space-y-5 animate-fadeIn">
+          
+          {/* KPIs del Historial Filtrado */}
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${isOwnerOrAdmin ? "lg:grid-cols-4" : "lg:grid-cols-3"} gap-3.5`}>
+            <div className="p-4 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple">
+              <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">
+                Facturas Registradas
+              </span>
+              <div className="flex items-baseline justify-between mt-1">
+                <span className="text-2xl font-extrabold font-mono text-neutral-900 dark:text-white">
+                  {filteredInvoices.length}
+                </span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                  <Database className="w-3 h-3" />
+                  <span>{isSupabaseConfigured() ? "Supabase Cloud" : "Base Local"}</span>
+                </span>
+              </div>
+              <span className="text-[11px] text-neutral-500 mt-0.5 block">
+                Disponibles para consulta y reimpresión
+              </span>
+            </div>
+
+            <div className="p-4 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple">
+              <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">
+                Total Facturado ( Selección )
+              </span>
+              <div className="text-2xl font-extrabold font-mono text-apple-blue mt-1">
+                C$ {totalFilteredSalesAmount.toLocaleString("es-NI", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <span className="text-[11px] font-mono text-neutral-400 mt-0.5 block">
+                ≈ $ {(totalFilteredSalesAmount / tenant.exchangeRate).toFixed(2)} USD
+              </span>
+            </div>
+
+            <div className="p-4 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple">
+              <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">
+                Efectivo vs Tarjeta / Transf.
+              </span>
+              <div className="text-sm font-extrabold font-mono text-emerald-600 dark:text-emerald-400 mt-1.5">
+                Efectivo: C$ {totalFilteredCashAmount.toLocaleString("es-NI", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <span className="text-[11px] font-mono text-neutral-500 mt-0.5 block">
+                Bancos: C$ {totalFilteredBankAmount.toLocaleString("es-NI", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+
+            {isOwnerOrAdmin && (
+              <div className="p-4 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple">
+                <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">
+                  Utilidad Neta (Solo Propietario)
+                </span>
+                <div className="text-2xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400 mt-1">
+                  +C$ {totalFilteredProfitAmount.toLocaleString("es-NI", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <span className="text-[11px] text-neutral-500 mt-0.5 block">
+                  Margen real descontando costos
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Barra de Búsqueda y Filtros de Facturas */}
+          <div className="p-4 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple flex flex-wrap items-center justify-between gap-3">
+            <div className="relative flex-1 min-w-[260px]">
+              <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={invoiceSearchQuery}
+                onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                placeholder="Buscar factura por #FAC, nombre del cliente, RUC, cajero o artículo..."
+                className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700/60 text-xs focus:outline-none focus:ring-2 focus:ring-apple-blue font-medium"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Filtro por forma de pago */}
+              <div className="flex items-center gap-1 p-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs">
+                {(["all", "cash", "card", "transfer"] as const).map((pm) => (
+                  <button
+                    key={pm}
+                    type="button"
+                    onClick={() => setInvoicePaymentFilter(pm)}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                      invoicePaymentFilter === pm
+                        ? "bg-white dark:bg-neutral-700 text-apple-blue shadow-2xs"
+                        : "text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+                    }`}
+                  >
+                    {pm === "all" ? "Todos" : pm === "cash" ? "Efectivo" : pm === "card" ? "Tarjeta" : "Transf."}
+                  </button>
+                ))}
+              </div>
+
+              {/* Filtro por fecha */}
+              <div className="flex items-center gap-1 p-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs">
+                {(["today", "week", "all"] as const).map((df) => (
+                  <button
+                    key={df}
+                    type="button"
+                    onClick={() => setInvoiceDateFilter(df)}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                      invoiceDateFilter === df
+                        ? "bg-apple-blue text-white shadow-2xs"
+                        : "text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+                    }`}
+                  >
+                    {df === "today" ? "Hoy" : df === "week" ? "7 Días" : "Histórico Total"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Panel Dividido: Izquierda Tabla de Facturas / Derecha Visualizador & Reimpresión */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            {/* Lista de Facturas Emitidas */}
+            <div className="lg:col-span-7 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple overflow-hidden">
+              <div className="p-4 border-b border-neutral-200/80 dark:border-neutral-800 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Receipt className="w-4 h-4 text-apple-blue" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-white">
+                    Registro de Facturas en Caja ({filteredInvoices.length})
+                  </h3>
+                </div>
+                <span className="text-[11px] text-neutral-400">
+                  Haz clic en una factura para visualizar o reimprimir
+                </span>
+              </div>
+
+              {filteredInvoices.length === 0 ? (
+                <div className="py-16 text-center space-y-2">
+                  <Receipt className="w-8 h-8 text-neutral-300 dark:text-neutral-700 mx-auto" />
+                  <p className="text-xs text-neutral-400">
+                    No se encontraron facturas con los filtros seleccionados.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-neutral-50 dark:bg-neutral-900/60 text-neutral-400 font-semibold border-b border-neutral-200/80 dark:border-neutral-800 sticky top-0 z-10">
+                      <tr>
+                        <th className="py-3 px-4">Nº Factura & Fecha</th>
+                        <th className="py-3 px-4">Cliente & RUC</th>
+                        <th className="py-3 px-4">Pago</th>
+                        <th className="py-3 px-4 text-right">Total</th>
+                        <th className="py-3 px-4 text-right">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-200/60 dark:divide-neutral-800/60">
+                      {filteredInvoices.map((inv) => {
+                        const isSelected = selectedInvoiceForView?.id === inv.id;
+                        return (
+                          <tr
+                            key={inv.id}
+                            onClick={() => setSelectedInvoiceForView(inv)}
+                            className={`transition-colors cursor-pointer ${
+                              isSelected
+                                ? "bg-apple-blue/10 dark:bg-apple-blue/15"
+                                : "hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40"
+                            }`}
+                          >
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono font-bold text-neutral-900 dark:text-white">
+                                  {inv.invoiceNumber}
+                                </span>
+                                {(inv.reprintCount || 0) > 0 && (
+                                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold">
+                                    Reimpresa {inv.reprintCount}x
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-neutral-400 font-mono block">
+                                {new Date(inv.createdAt).toLocaleString("es-NI")}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="font-semibold text-neutral-900 dark:text-white block truncate max-w-[160px]">
+                                {inv.customerName || inv.customer?.name || "Cliente de Contado"}
+                              </span>
+                              <span className="text-[10px] text-neutral-400 font-mono block">
+                                {inv.customerTaxId ? `RUC: ${inv.customerTaxId}` : `Cajero: ${inv.cashierName || "Mostrador"}`}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase ${
+                                inv.paymentMethod === "cash"
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                  : inv.paymentMethod === "card"
+                                  ? "bg-apple-blue/10 text-apple-blue"
+                                  : "bg-purple-500/10 text-purple-600 dark:text-purple-400"
+                              }`}>
+                                {inv.paymentMethod === "cash" ? "Efectivo" : inv.paymentMethod === "card" ? "Tarjeta" : "Transf."}
+                              </span>
+                              <span className="text-[10px] text-neutral-400 block mt-0.5 font-mono">
+                                {inv.items.length} {inv.items.length === 1 ? "ítem" : "ítems"}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <span className="font-mono font-bold text-apple-blue block">
+                                C$ {inv.total.toFixed(2)}
+                              </span>
+                              <span className="text-[10px] font-mono text-neutral-400">
+                                $ {(inv.total / (inv.exchangeRate || tenant.exchangeRate)).toFixed(2)}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <div className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedInvoiceForView(inv)}
+                                  className="px-2.5 py-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-apple-blue hover:text-white text-neutral-700 dark:text-neutral-300 text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                                  title="Visualizar factura en detalle"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                  <span>Ver</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setLastSale(inv);
+                                    setShowReceiptModal(true);
+                                    handleRegisterReprint(inv);
+                                  }}
+                                  className="p-1.5 rounded-xl bg-apple-blue/10 hover:bg-apple-blue text-apple-blue hover:text-white transition-colors cursor-pointer"
+                                  title="Reimprimir factura inmediatamente"
+                                >
+                                  <Printer className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Columna Derecha: Visualizador en Vivo del Ticket / Factura Seleccionada */}
+            <div className="lg:col-span-5">
+              {selectedInvoiceForView ? (
+                <div className="p-5 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-4 sticky top-20">
+                  
+                  <div className="flex items-center justify-between pb-3 border-b border-neutral-200 dark:border-neutral-800">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-apple-blue" />
+                        <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
+                          Visualizador de Factura #{selectedInvoiceForView.invoiceNumber}
+                        </h3>
+                      </div>
+                      <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">
+                        ● Guardada en Historial Local & Supabase Cloud
+                      </span>
+                    </div>
+
+                    <label className="flex items-center gap-1.5 text-[11px] font-medium text-neutral-600 dark:text-neutral-400 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={markAsReprintCopy}
+                        onChange={(e) => setMarkAsReprintCopy(e.target.checked)}
+                        className="rounded border-neutral-300 text-apple-blue focus:ring-apple-blue"
+                      />
+                      <span>Sello Reimpresión</span>
+                    </label>
+                  </div>
+
+                  {/* Vista Previa Térmica Imprimible */}
+                  <div
+                    id="thermal-receipt-printable-viewer"
+                    className={`p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 font-mono text-xs border border-dashed border-neutral-300 dark:border-neutral-700 space-y-2 printable-thermal-ticket ${
+                      tenant.ticketFormat === "58mm" ? "max-w-[280px] mx-auto text-[11px] printable-thermal-ticket-58mm" : "w-full"
+                    }`}
+                  >
+                    <div className="text-center pb-2 border-b border-dashed border-neutral-300 dark:border-neutral-700 space-y-0.5">
+                      {tenant.showLogoOnTicket !== false && tenant.logoUrl && (
+                        <div className="flex justify-center mb-1.5">
+                          <img
+                            src={tenant.logoUrl}
+                            alt="Logo"
+                            className={`object-contain filter grayscale contrast-125 dark:invert ${
+                              tenant.logoSize === "sm" ? "h-9 max-w-[120px]" : tenant.logoSize === "lg" ? "h-16 max-w-[180px]" : "h-12 max-w-[150px]"
+                            }`}
+                          />
+                        </div>
+                      )}
+                      <p className="font-extrabold text-sm uppercase">{tenant.ticketHeader || tenant.name}</p>
+                      {tenant.legalName && <p className="text-[10px] text-neutral-500">{tenant.legalName}</p>}
+                      {tenant.invoiceSlogan && <p className="text-[9px] italic text-neutral-400">&ldquo;{tenant.invoiceSlogan}&rdquo;</p>}
+                      <p className="text-[10px] text-neutral-600 dark:text-neutral-400 font-bold mt-1">
+                        RUC: {tenant.taxId || "J031000049102"}
+                      </p>
+                      <p className="text-[10px] text-neutral-500">{tenant.address || "Dirección de la empresa"}</p>
+                      <p className="text-[10px] text-neutral-500">{tenant.city || "Chinandega"}, NI • Tel: {tenant.phone || "+505 2341-2090"}</p>
+                      <p className="text-[10px] text-neutral-500 font-bold mt-1">FACTURA #{selectedInvoiceForView.invoiceNumber}</p>
+                      <p className="text-[9px] text-neutral-400">{new Date(selectedInvoiceForView.createdAt).toLocaleString("es-NI")}</p>
+                      {markAsReprintCopy && (
+                        <div className="mt-1 py-0.5 px-2 rounded bg-neutral-200/80 dark:bg-neutral-800 text-[10px] font-bold uppercase tracking-widest inline-block">
+                          *** COPIA / REIMPRESIÓN DE CAJA ***
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Datos del Cliente */}
+                    <div className="text-[11px] pb-2 border-b border-dashed border-neutral-300 dark:border-neutral-700 space-y-0.5">
+                      <p className="font-bold">
+                        CLIENTE: {selectedInvoiceForView.customerName || selectedInvoiceForView.customer?.name || "Cliente de Contado"}
+                      </p>
+                      {selectedInvoiceForView.customerTaxId && (
+                        <p className="text-[10px] text-neutral-600 dark:text-neutral-400">
+                          RUC / CÉDULA: {selectedInvoiceForView.customerTaxId}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-neutral-500">
+                        CAJERO: {selectedInvoiceForView.cashierName || "Cajero Mostrador"}
+                      </p>
+                    </div>
+
+                    {/* Artículos Facturados */}
+                    <div className="space-y-1.5 text-[11px] max-h-56 overflow-y-auto pr-1">
+                      {selectedInvoiceForView.items.map((it, idx) => (
+                        <div key={idx} className="pb-1 border-b border-neutral-200/50 dark:border-neutral-800/50">
+                          <div className="flex justify-between font-semibold">
+                            <span className="truncate max-w-[180px]">{it.quantity}x {it.product.name}</span>
+                            <span>C$ {it.subtotal.toFixed(2)}</span>
+                          </div>
+                          <div className="text-[9px] text-neutral-500 flex items-center justify-between mt-0.5">
+                            <span>{it.quantity} {it.unit} @ C$ {it.unitPrice.toFixed(2)}</span>
+                            {it.selectedBatch && <span>Lote: {it.selectedBatch.batchNumber}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Totales y Vuelto */}
+                    <div className="pt-2 border-t border-dashed border-neutral-300 dark:border-neutral-700 space-y-1">
+                      <div className="flex justify-between text-neutral-500 text-[10px]">
+                        <span>Subtotal:</span>
+                        <span>C$ {selectedInvoiceForView.subtotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-neutral-500 text-[10px]">
+                        <span>IVA ({tenant.taxPercentage}%):</span>
+                        <span>C$ {selectedInvoiceForView.tax.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-bold pt-1 border-t border-neutral-200 dark:border-neutral-800">
+                        <span>TOTAL FACTURA:</span>
+                        <span className="text-apple-blue font-mono font-bold">C$ {selectedInvoiceForView.total.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px] text-neutral-500 font-mono">
+                        <span>Equiv. Dólares (TC {selectedInvoiceForView.exchangeRate || tenant.exchangeRate}):</span>
+                        <span>$ {(selectedInvoiceForView.total / (selectedInvoiceForView.exchangeRate || tenant.exchangeRate)).toFixed(2)} USD</span>
+                      </div>
+
+                      <div className="pt-2 mt-1 border-t border-dashed border-neutral-300 dark:border-neutral-700 text-[11px] space-y-0.5">
+                        <div className="flex justify-between">
+                          <span className="text-neutral-500">Forma de Pago:</span>
+                          <span className="font-bold uppercase">
+                            {selectedInvoiceForView.paymentMethod === "cash"
+                              ? "EFECTIVO"
+                              : selectedInvoiceForView.paymentMethod === "card"
+                              ? "TARJETA"
+                              : "TRANSFERENCIA"}
+                          </span>
+                        </div>
+                        {selectedInvoiceForView.paymentReference && (
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-neutral-500">Referencia / Voucher:</span>
+                            <span className="font-mono">{selectedInvoiceForView.paymentReference}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-neutral-500">Monto Recibido:</span>
+                          <span className="font-mono font-bold">C$ {selectedInvoiceForView.amountPaid.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-bold">
+                          <span>VUELTO ENTREGADO:</span>
+                          <span className="font-mono">C$ {selectedInvoiceForView.changeGiven.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-center pt-2 text-[9px] text-neutral-500 border-t border-dashed border-neutral-300 dark:border-neutral-700 space-y-1">
+                      {tenant.showBarcodeOnTicket !== false && (
+                        <div className="py-1">
+                          <div className="font-mono tracking-widest text-neutral-400 text-xs">
+                            ||||| | |||| |||| || ||||| | ||||
+                          </div>
+                          <p className="font-mono text-[8px]">{selectedInvoiceForView.invoiceNumber}</p>
+                        </div>
+                      )}
+                      <p className="mt-1 text-[10px] text-neutral-600 dark:text-neutral-400 font-sans">{tenant.ticketFooter}</p>
+                    </div>
+                  </div>
+
+                  {/* Botones de Acción del Visualizador */}
+                  {btPrintMessage && (
+                    <div className={`p-2.5 rounded-xl text-center text-xs font-semibold ${
+                      btPrintMessage.success
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                        : "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
+                    }`}>
+                      {btPrintMessage.text}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setIsPrintingBt(true);
+                        setBtPrintMessage(null);
+                        handleRegisterReprint(selectedInvoiceForView);
+                        const res = await printReceiptViaBluetooth(selectedInvoiceForView, tenant);
+                        setIsPrintingBt(false);
+                        if (res.success) {
+                          setBtPrintMessage({ text: "¡Reimpresión enviada por Bluetooth!", success: true });
+                        } else {
+                          setBtPrintMessage({ text: res.error || "No se pudo conectar a la impresora Bluetooth.", success: false });
+                        }
+                      }}
+                      disabled={isPrintingBt}
+                      className="py-2.5 px-3 rounded-xl bg-apple-blue hover:bg-apple-blue-hover text-white text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
+                    >
+                      <Bluetooth className="w-3.5 h-3.5" />
+                      <span>{isPrintingBt ? "Imprimiendo..." : "Reimprimir Bluetooth"}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleRegisterReprint(selectedInvoiceForView);
+                        printThermalReceipt(
+                          "thermal-receipt-printable-viewer",
+                          tenant.ticketFormat,
+                          `Reimpresion_${selectedInvoiceForView.invoiceNumber}`
+                        );
+                      }}
+                      className="py-2.5 px-3 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:opacity-90 text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Imprimir Térmica / PDF</span>
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDuplicateInvoiceToCart(selectedInvoiceForView)}
+                    className="w-full py-2 px-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-apple-blue" />
+                    <span>Cargar estos Artículos al Carrito (Repetir Venta)</span>
+                  </button>
+
+                </div>
+              ) : (
+                <div className="p-10 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple text-center space-y-2">
+                  <FileText className="w-8 h-8 text-neutral-300 dark:text-neutral-700 mx-auto" />
+                  <p className="text-xs font-semibold text-neutral-500">
+                    Selecciona una factura de la lista izquierda para visualizar su comprobante térmico y reimprimirla.
+                  </p>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* MODAL 1: APERTURA DE CAJA (FONDO INICIAL DE TURNO)       */}

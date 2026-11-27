@@ -1,251 +1,432 @@
 -- ==============================================================================
--- NÚCLEO ERP - MULTI-TENANT MODULAR SCHEMA
--- Compatible con Supabase PostgreSQL + Row Level Security (RLS)
--- Modelo 100% Contado / Tarjeta / Transferencia (Sin fiados)
+-- NÚCLEO ERP v3.5 - COMPLETE MULTI-TENANT SUPABASE POSTGRESQL SCHEMA
+-- Soporta todos los módulos: POS, Facturación, Caja/Arqueos Z, Inventario, Lotes,
+-- Clientes, Usuarios/Roles, Clínica Dental (Odontograma FDI), Veterinaria,
+-- RRHH & Nómina, Producción & Recetas (BOM), Rutas GPS & Conductores, y Helpdesk.
 -- ==============================================================================
 
--- Habilitar extensión UUID
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. TENANTS (Negocios / Organizaciones)
-CREATE TABLE IF NOT EXISTS public.tenants (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+-- ==============================================================================
+-- 1. TABLA MAESTRA DE NEGOCIOS (MULTI-TENANT) & CONFIGURACIONES
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.nucleo_tenants (
+    id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     legal_name TEXT,
-    slug TEXT UNIQUE NOT NULL,
-    business_type TEXT NOT NULL DEFAULT 'ferreteria',
-    currency TEXT NOT NULL DEFAULT 'NIO', -- 'NIO' | 'USD'
-    secondary_currency TEXT DEFAULT 'USD',
-    exchange_rate NUMERIC(10, 4) DEFAULT 36.6200,
-    tax_percentage NUMERIC(5, 2) DEFAULT 15.00,
-    tax_id TEXT, -- RUC
+    tax_id TEXT,
     phone TEXT,
     email TEXT,
     address TEXT,
     city TEXT DEFAULT 'Chinandega',
+    owner JSONB NOT NULL DEFAULT '{}'::jsonb,
+    business_vertical TEXT NOT NULL DEFAULT 'ferreteria',
+    currency TEXT NOT NULL DEFAULT 'NIO',
+    secondary_currency TEXT NOT NULL DEFAULT 'USD',
+    exchange_rate NUMERIC(12, 4) NOT NULL DEFAULT 36.6200,
+    tax_percentage NUMERIC(6, 2) NOT NULL DEFAULT 15.00,
+    active_modules TEXT[] NOT NULL DEFAULT ARRAY['pos', 'inventory', 'billing', 'customers'],
+    ticket_format TEXT NOT NULL DEFAULT '80mm',
+    ticket_header TEXT,
+    ticket_footer TEXT,
+    invoice_slogan TEXT,
+    show_tax_breakdown BOOLEAN DEFAULT TRUE,
+    show_usd_equivalence BOOLEAN DEFAULT TRUE,
+    show_barcode_on_ticket BOOLEAN DEFAULT TRUE,
     logo_url TEXT,
-    subscription_plan TEXT NOT NULL DEFAULT 'pro',
-    subscription_status TEXT NOT NULL DEFAULT 'active',
-    monthly_price NUMERIC(10, 2) DEFAULT 29.00,
+    show_logo_on_ticket BOOLEAN DEFAULT TRUE,
+    logo_size TEXT DEFAULT 'md',
+    bluetooth_printer_name TEXT,
+    auto_print_bluetooth BOOLEAN DEFAULT FALSE,
+    is_setup_completed BOOLEAN DEFAULT TRUE,
+    monthly_plan_price NUMERIC(10, 2) DEFAULT 35.00,
+    plan_name TEXT DEFAULT 'Pro',
+    billing_cycle TEXT DEFAULT 'monthly',
+    next_payment_date TEXT,
+    payment_status TEXT DEFAULT 'active',
+    admin_assigned_by TEXT,
+    plan_assigned_date TEXT,
+    billing_cut_day INTEGER DEFAULT 10,
+    billing_due_day INTEGER DEFAULT 5,
+    login_username TEXT,
+    login_password TEXT,
+    raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. MÓDULOS ACTIVOS POR TENANT
-CREATE TABLE IF NOT EXISTS public.tenant_modules (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    module_key TEXT NOT NULL, -- 'pos', 'inventory', 'billing', 'customers', 'expenses', 'hr', 'production'
-    is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-    settings JSONB DEFAULT '{}'::jsonb,
-    activated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(tenant_id, module_key)
-);
-
--- 3. ROLES DINÁMICOS
-CREATE TABLE IF NOT EXISTS public.roles (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    description TEXT,
-    is_owner_role BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 4. PERMISOS GRANULARES DE ROLES
-CREATE TABLE IF NOT EXISTS public.role_permissions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    role_id UUID NOT NULL REFERENCES public.roles(id) ON DELETE CASCADE,
-    permission_key TEXT NOT NULL,
-    UNIQUE(role_id, permission_key)
-);
-
--- 5. PERFILES DE USUARIOS (Vinculados a auth.users de Supabase)
-CREATE TABLE IF NOT EXISTS public.profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    tenant_id UUID REFERENCES public.tenants(id) ON DELETE SET NULL,
-    role_id UUID REFERENCES public.roles(id) ON DELETE SET NULL,
+-- ==============================================================================
+-- 2. USUARIOS Y ROLES POR NEGOCIO (CONTROL DE ACCESO GRANULAR)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.nucleo_users (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT REFERENCES public.nucleo_tenants(id) ON DELETE CASCADE,
     full_name TEXT NOT NULL,
-    email TEXT NOT NULL,
+    username TEXT NOT NULL,
     phone TEXT,
-    pin_code TEXT,
-    avatar_url TEXT,
-    is_owner BOOLEAN DEFAULT FALSE,
-    is_superadmin BOOLEAN DEFAULT FALSE,
-    status TEXT DEFAULT 'active',
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 6. UNIDADES DE MEDIDA
-CREATE TABLE IF NOT EXISTS public.units_of_measure (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    code TEXT NOT NULL, -- 'und', 'mtr', 'vara', 'lbr', 'qq', 'paq', 'gal', 'lt'
-    name TEXT NOT NULL,
-    conversion_ratio NUMERIC(12, 4) DEFAULT 1.0000,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 7. CATEGORÍAS & MARCAS
-CREATE TABLE IF NOT EXISTS public.categories (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS public.brands (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 8. PRODUCTOS & SERVICIOS
-CREATE TABLE IF NOT EXISTS public.products (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    barcode TEXT,
-    sku TEXT,
-    name TEXT NOT NULL,
-    description TEXT,
-    category_id UUID REFERENCES public.categories(id) ON DELETE SET NULL,
-    brand_id UUID REFERENCES public.brands(id) ON DELETE SET NULL,
-    unit_id UUID REFERENCES public.units_of_measure(id) ON DELETE SET NULL,
-    cost_price NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    sale_price NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    min_stock NUMERIC(12, 2) DEFAULT 5.00,
-    current_stock NUMERIC(12, 2) DEFAULT 0.00,
-    track_batches BOOLEAN DEFAULT FALSE,
-    is_active BOOLEAN DEFAULT TRUE,
+    email TEXT,
+    pin_code TEXT NOT NULL,
+    password TEXT,
+    role TEXT NOT NULL DEFAULT 'cashier', -- 'superadmin', 'owner', 'cashier', 'inventory_clerk', 'driver', 'supervisor', 'custom'
+    role_label TEXT NOT NULL DEFAULT 'Cajero',
+    allowed_modules TEXT[] NOT NULL DEFAULT ARRAY['pos'],
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 9. LOTES & VENCIMIENTOS
-CREATE TABLE IF NOT EXISTS public.inventory_batches (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
-    batch_number TEXT NOT NULL,
-    expiration_date DATE NOT NULL,
-    quantity NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    cost_price NUMERIC(12, 2) NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE INDEX IF NOT EXISTS idx_nucleo_users_tenant ON public.nucleo_users(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_nucleo_users_username ON public.nucleo_users(username);
+
+-- ==============================================================================
+-- 3. INVENTARIO, PRODUCTOS Y LOTES (MULTI-UNIDAD & FEFO)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.nucleo_products (
+    id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL REFERENCES public.nucleo_tenants(id) ON DELETE CASCADE,
+    sku TEXT NOT NULL,
+    barcode TEXT,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'General',
+    unit TEXT NOT NULL DEFAULT 'Unidad',
+    cost_price NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    sale_price NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    stock NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    min_stock NUMERIC(14, 2) NOT NULL DEFAULT 5.00,
+    has_batches BOOLEAN NOT NULL DEFAULT FALSE,
+    batches JSONB NOT NULL DEFAULT '[]'::jsonb,
+    batch_number TEXT,
+    expiration_date TEXT,
+    raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, id)
 );
 
--- 10. KARDEX / MOVIMIENTOS DE STOCK
-CREATE TABLE IF NOT EXISTS public.inventory_movements (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
-    movement_type TEXT NOT NULL, -- 'sale', 'purchase', 'adjustment_in', 'adjustment_out', 'transfer'
-    quantity NUMERIC(12, 2) NOT NULL,
-    unit_cost NUMERIC(12, 2) NOT NULL,
-    reference_id UUID,
-    notes TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
+CREATE INDEX IF NOT EXISTS idx_nucleo_products_tenant ON public.nucleo_products(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_nucleo_products_sku ON public.nucleo_products(tenant_id, sku);
+CREATE INDEX IF NOT EXISTS idx_nucleo_products_barcode ON public.nucleo_products(tenant_id, barcode);
 
--- 11. CAJAS REGISTRADORAS
-CREATE TABLE IF NOT EXISTS public.cash_registers (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    name TEXT NOT NULL DEFAULT 'Caja Principal',
-    status TEXT NOT NULL DEFAULT 'open',
-    opened_by UUID REFERENCES public.profiles(id),
-    opening_amount NUMERIC(12, 2) DEFAULT 0.00,
-    sales_amount NUMERIC(12, 2) DEFAULT 0.00,
-    opened_at TIMESTAMPTZ DEFAULT NOW(),
-    closed_at TIMESTAMPTZ
-);
-
--- 12. DIRECTORIO DE CLIENTES (Facturación Comercial y Fiscal)
-CREATE TABLE IF NOT EXISTS public.customers (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+-- ==============================================================================
+-- 4. DIRECTORIO DE CLIENTES POR NEGOCIO
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.nucleo_customers (
+    id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL REFERENCES public.nucleo_tenants(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     business_name TEXT,
     phone TEXT,
     email TEXT,
+    tax_id TEXT,
     address TEXT,
     city TEXT DEFAULT 'Chinandega',
-    tax_id TEXT, -- RUC / Cédula
-    total_purchases NUMERIC(12, 2) DEFAULT 0.00,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    total_purchases NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    last_purchase_date TEXT,
+    raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, id)
 );
 
--- 13. VENTAS / FACTURAS (100% Contado / Tarjeta / Transferencia)
-CREATE TABLE IF NOT EXISTS public.sales (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    invoice_number TEXT NOT NULL,
-    customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
-    cash_register_id UUID REFERENCES public.cash_registers(id) ON DELETE SET NULL,
-    seller_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
-    payment_method TEXT NOT NULL DEFAULT 'cash', -- 'cash', 'card', 'transfer'
-    currency TEXT NOT NULL DEFAULT 'NIO',
-    exchange_rate NUMERIC(10, 4) DEFAULT 36.6200,
-    subtotal NUMERIC(12, 2) NOT NULL,
-    tax_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    discount_amount NUMERIC(12, 2) DEFAULT 0.00,
-    total NUMERIC(12, 2) NOT NULL,
-    cost_total NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    profit NUMERIC(12, 2) GENERATED ALWAYS AS (total - cost_total) STORED,
-    status TEXT NOT NULL DEFAULT 'completed',
+CREATE INDEX IF NOT EXISTS idx_nucleo_customers_tenant ON public.nucleo_customers(tenant_id);
+
+-- ==============================================================================
+-- 5. SESIONES DE CAJA Y ARQUEOS DE TURNO (CORTE Z)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.nucleo_cash_sessions (
+    id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL REFERENCES public.nucleo_tenants(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'open', -- 'open' | 'closed'
+    opened_by TEXT NOT NULL,
+    opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    opening_amount NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    closed_by TEXT,
+    closed_at TIMESTAMPTZ,
+    cash_sales_total NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    card_sales_total NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    transfer_sales_total NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    total_sales NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    total_profit NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    sales_count INTEGER NOT NULL DEFAULT 0,
+    expected_cash_in_drawer NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    actual_cash_in_drawer NUMERIC(14, 2),
+    difference NUMERIC(14, 2),
     notes TEXT,
-    offline_synced BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, id)
 );
 
--- 14. DETALLES DE VENTA (ITEMS)
-CREATE TABLE IF NOT EXISTS public.sale_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    sale_id UUID NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
-    product_id UUID NOT NULL REFERENCES public.products(id),
-    product_name TEXT NOT NULL,
-    unit_code TEXT DEFAULT 'und',
-    quantity NUMERIC(12, 2) NOT NULL,
-    unit_cost NUMERIC(12, 2) NOT NULL,
-    unit_price NUMERIC(12, 2) NOT NULL,
-    subtotal NUMERIC(12, 2) NOT NULL
-);
-
--- 15. CONFIGURACIÓN DE TICKET / FACTURA
-CREATE TABLE IF NOT EXISTS public.ticket_configurations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    paper_format TEXT DEFAULT '80mm', -- '58mm', '80mm', 'letter'
-    header_title TEXT,
-    header_subtitle TEXT,
-    footer_message TEXT DEFAULT '¡Gracias por su compra! Venta al contado.',
-    show_logo BOOLEAN DEFAULT TRUE,
-    show_tax_details BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
+CREATE INDEX IF NOT EXISTS idx_nucleo_cash_sessions_tenant ON public.nucleo_cash_sessions(tenant_id, opened_at DESC);
 
 -- ==============================================================================
--- ROW LEVEL SECURITY (RLS) POLICIES
+-- 6. FACTURAS EMITIDAS EN CAJA (VENTAS POS & VISUALIZADOR DE FACTURAS)
 -- ==============================================================================
-ALTER TABLE public.tenants ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.tenant_modules ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.sale_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.cash_registers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+CREATE TABLE IF NOT EXISTS public.nucleo_sales (
+    id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL REFERENCES public.nucleo_tenants(id) ON DELETE CASCADE,
+    invoice_number TEXT NOT NULL,
+    customer_id TEXT,
+    customer_name TEXT NOT NULL DEFAULT 'Cliente de Contado',
+    customer_tax_id TEXT,
+    payment_method TEXT NOT NULL DEFAULT 'cash', -- 'cash' | 'card' | 'transfer'
+    payment_reference TEXT,
+    amount_paid NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    change_given NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    items JSONB NOT NULL DEFAULT '[]'::jsonb,
+    subtotal NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    tax NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    total NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    cost_total NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    profit NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    currency TEXT NOT NULL DEFAULT 'NIO',
+    exchange_rate NUMERIC(12, 4) NOT NULL DEFAULT 36.6200,
+    cashier_name TEXT,
+    seller_name TEXT,
+    cash_session_id TEXT,
+    status TEXT NOT NULL DEFAULT 'completed', -- 'completed' | 'voided'
+    reprint_count INTEGER NOT NULL DEFAULT 0,
+    raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, id)
+);
 
-CREATE OR REPLACE FUNCTION public.get_current_tenant_id()
-RETURNS UUID AS $$
-    SELECT tenant_id FROM public.profiles WHERE id = auth.uid() LIMIT 1;
-$$ LANGUAGE SQL STABLE SECURITY DEFINER;
+CREATE INDEX IF NOT EXISTS idx_nucleo_sales_tenant_date ON public.nucleo_sales(tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_nucleo_sales_invoice ON public.nucleo_sales(tenant_id, invoice_number);
 
-CREATE POLICY "Users can view data in their tenant" ON public.products
-    FOR ALL USING (tenant_id = public.get_current_tenant_id());
+-- ==============================================================================
+-- 7. MÓDULO VETERINARIO (PACIENTES, CONSULTAS, VACUNAS, DESPARASITACIÓN)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.nucleo_vet_patients (
+    id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL REFERENCES public.nucleo_tenants(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    species TEXT NOT NULL,
+    breed TEXT,
+    owner_name TEXT NOT NULL,
+    owner_phone TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    consultations JSONB NOT NULL DEFAULT '[]'::jsonb,
+    vaccines JSONB NOT NULL DEFAULT '[]'::jsonb,
+    dewormings JSONB NOT NULL DEFAULT '[]'::jsonb,
+    raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, id)
+);
 
-CREATE POLICY "Users can view sales in their tenant" ON public.sales
-    FOR ALL USING (tenant_id = public.get_current_tenant_id());
+CREATE INDEX IF NOT EXISTS idx_nucleo_vet_patients_tenant ON public.nucleo_vet_patients(tenant_id);
 
-CREATE POLICY "Users can view customers in their tenant" ON public.customers
-    FOR ALL USING (tenant_id = public.get_current_tenant_id());
+-- ==============================================================================
+-- 8. MÓDULO CLÍNICO Y DENTAL (PACIENTES, ODONTOGRAMA FDI 32 PIEZAS, CONSULTAS)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.nucleo_clinical_patients (
+    id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL REFERENCES public.nucleo_tenants(id) ON DELETE CASCADE,
+    full_name TEXT NOT NULL,
+    dni TEXT,
+    phone TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    odontogram JSONB NOT NULL DEFAULT '[]'::jsonb,
+    consultations JSONB NOT NULL DEFAULT '[]'::jsonb,
+    raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_nucleo_clinical_patients_tenant ON public.nucleo_clinical_patients(tenant_id);
+
+-- ==============================================================================
+-- 9. MÓDULO RECURSOS HUMANOS, ASISTENCIA Y PLANILLA DE NÓMINA
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.nucleo_hr_employees (
+    id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL REFERENCES public.nucleo_tenants(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    full_name TEXT NOT NULL,
+    dni TEXT,
+    inss_number TEXT,
+    position TEXT,
+    department TEXT,
+    base_monthly_salary NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    status TEXT NOT NULL DEFAULT 'activo',
+    attendance JSONB NOT NULL DEFAULT '[]'::jsonb,
+    movements JSONB NOT NULL DEFAULT '[]'::jsonb,
+    payroll_history JSONB NOT NULL DEFAULT '[]'::jsonb,
+    raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_nucleo_hr_employees_tenant ON public.nucleo_hr_employees(tenant_id);
+
+-- ==============================================================================
+-- 10. MÓDULO PRODUCCIÓN, FÓRMULAS Y RECETAS (BOM)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.nucleo_production_recipes (
+    id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL REFERENCES public.nucleo_tenants(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    output_product_name TEXT NOT NULL,
+    total_recipe_cost NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    suggested_sale_price NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    ingredients JSONB NOT NULL DEFAULT '[]'::jsonb,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS public.nucleo_production_orders (
+    id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL REFERENCES public.nucleo_tenants(id) ON DELETE CASCADE,
+    order_number TEXT NOT NULL,
+    recipe_id TEXT NOT NULL,
+    recipe_name TEXT NOT NULL,
+    batches_to_produce NUMERIC(12, 2) NOT NULL DEFAULT 1,
+    total_output_quantity NUMERIC(14, 2) NOT NULL DEFAULT 1,
+    total_estimated_cost NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    status TEXT NOT NULL DEFAULT 'planificada',
+    raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    started_at TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_nucleo_recipes_tenant ON public.nucleo_production_recipes(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_nucleo_prod_orders_tenant ON public.nucleo_production_orders(tenant_id);
+
+-- ==============================================================================
+-- 11. MÓDULO RUTAS DE REPARTO GPS, CONDUCTORES Y PEDIDOS EN RUTA
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.nucleo_route_drivers (
+    id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL REFERENCES public.nucleo_tenants(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    full_name TEXT NOT NULL,
+    phone TEXT,
+    vehicle_type TEXT,
+    vehicle_plate TEXT,
+    status TEXT NOT NULL DEFAULT 'disponible',
+    raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS public.nucleo_delivery_routes (
+    id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL REFERENCES public.nucleo_tenants(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'activa',
+    assigned_driver_ids TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    pins JSONB NOT NULL DEFAULT '[]'::jsonb,
+    raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS public.nucleo_route_orders (
+    id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL REFERENCES public.nucleo_tenants(id) ON DELETE CASCADE,
+    order_number TEXT NOT NULL,
+    route_id TEXT NOT NULL,
+    pin_id TEXT,
+    place_name TEXT NOT NULL,
+    driver_id TEXT,
+    driver_name TEXT,
+    total NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+    status TEXT NOT NULL DEFAULT 'pendiente_despacho',
+    items JSONB NOT NULL DEFAULT '[]'::jsonb,
+    raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (tenant_id, id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_nucleo_drivers_tenant ON public.nucleo_route_drivers(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_nucleo_routes_tenant ON public.nucleo_delivery_routes(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_nucleo_route_orders_tenant ON public.nucleo_route_orders(tenant_id);
+
+-- ==============================================================================
+-- 12. HELPDESK & SOPORTE TÉCNICO (NEGOCIOS <-> SUPERADMIN GOD MODE)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.nucleo_support_tickets (
+    id TEXT PRIMARY KEY,
+    ticket_code TEXT NOT NULL,
+    tenant_id TEXT NOT NULL REFERENCES public.nucleo_tenants(id) ON DELETE CASCADE,
+    tenant_name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'media',
+    status TEXT NOT NULL DEFAULT 'open',
+    unread_by_admin BOOLEAN DEFAULT TRUE,
+    unread_by_client BOOLEAN DEFAULT FALSE,
+    messages JSONB NOT NULL DEFAULT '[]'::jsonb,
+    raw_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_nucleo_tickets_tenant ON public.nucleo_support_tickets(tenant_id);
+
+-- ==============================================================================
+-- 13. ROW LEVEL SECURITY (RLS) MULTI-TENANT POLICIES
+-- Permite lectura/escritura autenticada o mediante API Key del cliente con
+-- aislamiento por tenant_id en cada consulta de la aplicación.
+-- ==============================================================================
+ALTER TABLE public.nucleo_tenants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nucleo_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nucleo_products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nucleo_customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nucleo_cash_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nucleo_sales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nucleo_vet_patients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nucleo_clinical_patients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nucleo_hr_employees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nucleo_production_recipes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nucleo_production_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nucleo_route_drivers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nucleo_delivery_routes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nucleo_route_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.nucleo_support_tickets ENABLE ROW LEVEL SECURITY;
+
+DO $$
+DECLARE
+    tbl TEXT;
+BEGIN
+    FOREACH tbl IN ARRAY ARRAY[
+        'nucleo_tenants',
+        'nucleo_users',
+        'nucleo_products',
+        'nucleo_customers',
+        'nucleo_cash_sessions',
+        'nucleo_sales',
+        'nucleo_vet_patients',
+        'nucleo_clinical_patients',
+        'nucleo_hr_employees',
+        'nucleo_production_recipes',
+        'nucleo_production_orders',
+        'nucleo_route_drivers',
+        'nucleo_delivery_routes',
+        'nucleo_route_orders',
+        'nucleo_support_tickets'
+    ]
+    LOOP
+        EXECUTE format('DROP POLICY IF EXISTS "allow_app_access_%I" ON public.%I;', tbl, tbl);
+        EXECUTE format(
+            'CREATE POLICY "allow_app_access_%I" ON public.%I FOR ALL USING (true) WITH CHECK (true);',
+            tbl, tbl
+        );
+    END LOOP;
+END $$;

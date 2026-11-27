@@ -52,6 +52,8 @@ export const UsersManager: React.FC<UsersManagerProps> = ({
       setSelectedModules(["pos"]);
     } else if (newRole === "inventory_clerk") {
       setSelectedModules(["inventory"]);
+    } else if (newRole === "driver") {
+      setSelectedModules(["routes"]);
     } else if (newRole === "supervisor") {
       setSelectedModules(["pos", "inventory", "customers"]);
     } else if (newRole === "owner") {
@@ -73,9 +75,21 @@ export const UsersManager: React.FC<UsersManagerProps> = ({
 
     let roleLabel = "Cajero de Mostrador";
     if (role === "inventory_clerk") roleLabel = "Encargado de Inventario";
+    if (role === "driver") roleLabel = "Conductor / Reparto en Ruta";
     if (role === "supervisor") roleLabel = "Supervisor de Turno";
     if (role === "owner") roleLabel = "Propietario / Dueño";
     if (role === "custom") roleLabel = "Personalizado";
+
+    const strictModules: ModuleKey[] =
+      role === "cashier"
+        ? ["pos"]
+        : role === "inventory_clerk"
+        ? ["inventory"]
+        : role === "driver"
+        ? ["routes"]
+        : selectedModules.length > 0
+        ? selectedModules
+        : ["pos"];
 
     const newUser: AppUser = {
       id: "usr-" + Date.now(),
@@ -83,16 +97,18 @@ export const UsersManager: React.FC<UsersManagerProps> = ({
       username: username.trim() || fullName.toLowerCase().replace(/\s+/g, ""),
       phone: phone.trim() || undefined,
       pinCode: pinCode.trim(),
+      password: pinCode.trim(),
       role,
       roleLabel,
-      allowedModules: selectedModules.length > 0 ? selectedModules : ["pos"],
+      allowedModules: strictModules,
       active: true,
       createdAt: new Date().toISOString(),
+      tenantId: tenant.id,
     };
 
     const updated = [...users, newUser];
     setUsers(updated);
-    saveStoredUsers(updated);
+    saveStoredUsers(updated, tenant.id);
     setShowAddModal(false);
 
     // Reset
@@ -115,6 +131,11 @@ export const UsersManager: React.FC<UsersManagerProps> = ({
       saveStoredUsers(updated);
     }
   };
+
+  // Mostrar únicamente los usuarios de este negocio (ocultando SuperAdmin de la lista del propietario)
+  const visibleUsers = users.filter(
+    (u) => u.role !== "superadmin" && (!u.tenantId || u.tenantId === tenant.id)
+  );
 
   return (
     <div className="space-y-6">
@@ -192,7 +213,7 @@ export const UsersManager: React.FC<UsersManagerProps> = ({
       <div className="rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple overflow-hidden">
         <div className="p-4 border-b border-neutral-200/80 dark:border-neutral-800 flex items-center justify-between">
           <h3 className="text-xs font-bold text-neutral-900 dark:text-white uppercase tracking-wider">
-            Usuarios del Sistema ({users.length})
+            Usuarios del Negocio ({visibleUsers.length})
           </h3>
           <span className="text-[11px] text-neutral-400 font-mono">
             Sesión actual: <strong>{currentUser.fullName} ({currentUser.roleLabel})</strong>
@@ -212,7 +233,7 @@ export const UsersManager: React.FC<UsersManagerProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-200/60 dark:divide-neutral-800/60 font-medium text-neutral-800 dark:text-neutral-200">
-              {users.map((u) => {
+              {visibleUsers.map((u) => {
                 const isCurrent = currentUser.id === u.id;
                 return (
                   <tr key={u.id} className="hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40 transition-colors">
@@ -367,11 +388,12 @@ export const UsersManager: React.FC<UsersManagerProps> = ({
                     onChange={(e) => handleRoleChange(e.target.value as UserRole)}
                     className="w-full px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-semibold"
                   >
-                    <option value="cashier">Cajero (Solo Terminal POS & Caja)</option>
-                    <option value="inventory_clerk">Bodeguero (Solo Inventario & Kardex)</option>
+                    <option value="cashier">Cajero (Exclusivo Terminal POS & Caja)</option>
+                    <option value="inventory_clerk">Bodeguero (Exclusivo Inventario & Kardex)</option>
+                    <option value="driver">Conductor / Reparto (Exclusivo Rutas & Mapa)</option>
                     <option value="supervisor">Supervisor (POS + Inventario + Clientes)</option>
                     <option value="owner">Propietario / Dueño (Acceso Total)</option>
-                    <option value="custom">Personalizado (Elegir módulos)</option>
+                    <option value="custom">Personalizado (Elegir paneles exactos)</option>
                   </select>
                 </div>
 

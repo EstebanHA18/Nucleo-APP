@@ -14,9 +14,11 @@ import {
   Stethoscope,
   UserCheck,
   Layers,
-  MapPin
+  MapPin,
+  LogOut
 } from "lucide-react";
 import { TenantSettings, AppUser } from "@/types";
+import { canUserAccessView } from "@/lib/offlineStore";
 
 interface NavigationDockProps {
   tenant: TenantSettings;
@@ -25,6 +27,8 @@ interface NavigationDockProps {
   currentUser: AppUser;
   onOpenSettingsWizard: () => void;
   onReturnToOwner: () => void;
+  isImpersonating?: boolean;
+  onLogout?: () => void;
 }
 
 export const NavigationDock: React.FC<NavigationDockProps> = ({
@@ -32,29 +36,23 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
   activeView,
   setActiveView,
   currentUser,
-  onOpenSettingsWizard,
   onReturnToOwner,
+  isImpersonating = false,
+  onLogout,
 }) => {
   const isOwner = currentUser.role === "owner" || currentUser.role === "superadmin";
-
-  // Verificar si el usuario actual tiene permiso para ver un módulo específico
-  const canAccess = (moduleKey: string) => {
-    if (isOwner) {
-      return tenant.activeModules.includes(moduleKey as any);
-    }
-    return currentUser.allowedModules.includes(moduleKey as any);
-  };
+  const canAccess = (viewKey: string) => canUserAccessView(currentUser, tenant, viewKey);
 
   return (
     <aside className="fixed bottom-5 inset-x-0 z-40 pointer-events-none flex justify-center px-4">
-      <nav className="pointer-events-auto flex items-center gap-1.5 p-1.5 rounded-full bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl border border-neutral-200/80 dark:border-neutral-800 shadow-2xl transition-all">
+      <nav className="pointer-events-auto flex items-center gap-1.5 p-1.5 rounded-full bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-2xl border border-neutral-200/80 dark:border-neutral-800 shadow-2xl transition-all overflow-x-auto max-w-full no-scrollbar">
         
-        {/* 1. Red Espacial (Solo si es dueño o tiene dashboard) */}
-        {isOwner && (
+        {/* 1. Red Espacial (Exclusivo para Dueño o SuperAdmin) */}
+        {canAccess("spatial") && (
           <button
             type="button"
             onClick={() => setActiveView("spatial")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeView === "spatial"
                 ? "bg-apple-blue text-white shadow-md shadow-apple-blue/30"
                 : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -65,12 +63,12 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           </button>
         )}
 
-        {/* 2. Drag & Drop Dashboard (Solo dueño o supervisor) */}
-        {isOwner && (
+        {/* 2. Drag & Drop Dashboard (Exclusivo para Dueño o SuperAdmin) */}
+        {canAccess("dashboard") && (
           <button
             type="button"
             onClick={() => setActiveView("dashboard")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeView === "dashboard"
                 ? "bg-apple-blue text-white shadow-md shadow-apple-blue/30"
                 : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -81,12 +79,12 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           </button>
         )}
 
-        {/* 3. POS (Si tiene permiso) */}
+        {/* 3. POS (Si tiene permiso explícito) */}
         {canAccess("pos") && (
           <button
             type="button"
             onClick={() => setActiveView("pos")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeView === "pos"
                 ? "bg-apple-blue text-white shadow-md shadow-apple-blue/30"
                 : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -97,12 +95,12 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           </button>
         )}
 
-        {/* 4. Inventory (Si tiene permiso) */}
+        {/* 4. Inventory (Si tiene permiso explícito) */}
         {canAccess("inventory") && (
           <button
             type="button"
             onClick={() => setActiveView("inventory")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeView === "inventory"
                 ? "bg-apple-blue text-white shadow-md shadow-apple-blue/30"
                 : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -113,12 +111,12 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           </button>
         )}
 
-        {/* 5. Clientes (Si tiene permiso y está activo) */}
+        {/* 5. Clientes (Si tiene permiso explícito) */}
         {canAccess("customers") && (
           <button
             type="button"
             onClick={() => setActiveView("customers")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeView === "customers"
                 ? "bg-apple-blue text-white shadow-md shadow-apple-blue/30"
                 : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -129,12 +127,12 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           </button>
         )}
 
-        {/* 6. Módulo Veterinario (Si tiene permiso y está activo) */}
+        {/* 6. Módulo Veterinario */}
         {canAccess("veterinary") && (
           <button
             type="button"
             onClick={() => setActiveView("veterinary")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeView === "veterinary"
                 ? "bg-amber-500 text-white shadow-md shadow-amber-500/30"
                 : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -145,12 +143,12 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           </button>
         )}
 
-        {/* 7. Módulo Clínico & Dental (Si tiene permiso y está activo) */}
+        {/* 7. Módulo Clínico & Dental */}
         {canAccess("clinical") && (
           <button
             type="button"
             onClick={() => setActiveView("clinical")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeView === "clinical"
                 ? "bg-teal-600 text-white shadow-md shadow-teal-600/30"
                 : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -161,12 +159,12 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           </button>
         )}
 
-        {/* 8. Módulo RRHH & Nómina (Si tiene permiso y está activo) */}
+        {/* 8. Módulo RRHH & Nómina */}
         {canAccess("hr") && (
           <button
             type="button"
             onClick={() => setActiveView("hr")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeView === "hr"
                 ? "bg-teal-600 text-white shadow-md shadow-teal-600/30"
                 : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -177,12 +175,12 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           </button>
         )}
 
-        {/* 9. Módulo Recetas & Producción (Si tiene permiso y está activo) */}
+        {/* 9. Módulo Recetas & Producción */}
         {canAccess("production") && (
           <button
             type="button"
             onClick={() => setActiveView("production")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeView === "production"
                 ? "bg-rose-600 text-white shadow-md shadow-rose-600/30"
                 : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -193,12 +191,12 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           </button>
         )}
 
-        {/* 10. Módulo Rutas, Mapa & Conductores (Si tiene permiso y está activo) */}
+        {/* 10. Módulo Rutas, Mapa & Conductores */}
         {canAccess("routes") && (
           <button
             type="button"
             onClick={() => setActiveView("routes")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeView === "routes"
                 ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
                 : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -210,11 +208,11 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
         )}
 
         {/* Si es Dueño: Botón directo a Usuarios */}
-        {isOwner && (
+        {canAccess("users") && (
           <button
             type="button"
             onClick={() => setActiveView("users")}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeView === "users"
                 ? "bg-apple-blue text-white shadow-md shadow-apple-blue/30"
                 : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -225,25 +223,38 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           </button>
         )}
 
-        {/* Si NO es dueño (es cajero o bodeguero), mostrar botón para volver al Dueño */}
-        {!isOwner && (
+        {/* SOLO si el Dueño está en modo simulación de empleado, permitirle salir de la simulación */}
+        {!isOwner && isImpersonating && (
           <button
             type="button"
             onClick={onReturnToOwner}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-apple-green/10 text-apple-green hover:bg-apple-green hover:text-white transition-all ml-1 border border-apple-green/30"
-            title="Volver a la sesión del Dueño"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-apple-green/10 text-apple-green hover:bg-apple-green hover:text-white transition-all ml-1 border border-apple-green/30 cursor-pointer whitespace-nowrap"
+            title="Salir del modo vista previa y volver a la cuenta del Propietario"
           >
             <LogIn className="w-3.5 h-3.5" />
-            <span>Volver a Dueño</span>
+            <span>Salir de Simulación</span>
           </button>
         )}
 
-        {/* SuperAdmin God Mode Terminal */}
-        {currentUser.role === "superadmin" && (
+        {/* Si es un empleado real que inició sesión con su PIN/clave, botón limpio de Cerrar Turno / Salir */}
+        {!isOwner && !isImpersonating && onLogout && (
+          <button
+            type="button"
+            onClick={onLogout}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-all ml-1 cursor-pointer whitespace-nowrap"
+            title="Cerrar sesión de empleado"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Salir ({currentUser.roleLabel.split(" ")[0]})</span>
+          </button>
+        )}
+
+        {/* SuperAdmin God Mode Terminal (Exclusivo SuperAdmin) */}
+        {canAccess("terminal") && (
           <button
             type="button"
             onClick={() => setActiveView("terminal")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeView === "terminal"
                 ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
                 : "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
@@ -255,19 +266,19 @@ export const NavigationDock: React.FC<NavigationDockProps> = ({
           </button>
         )}
 
-        {/* Ajustes y Configuración del Sistema (Solo dueño) */}
-        {isOwner && (
+        {/* Ajustes y Configuración del Sistema (Exclusivo Propietario / SuperAdmin) */}
+        {canAccess("settings") && (
           <>
             <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-700 mx-0.5" />
             <button
               type="button"
               onClick={() => setActiveView("settings")}
-              className={`p-2 rounded-full transition-all flex items-center justify-center ${
+              className={`p-2 rounded-full transition-all flex items-center justify-center cursor-pointer ${
                 activeView === "settings"
                   ? "bg-apple-blue text-white shadow-md shadow-apple-blue/30 scale-105"
                   : "text-neutral-500 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800"
               }`}
-              title="Ajustes de Factura, Plan y Módulos"
+              title="Ajustes de Factura, Plan, Módulos y Supabase"
             >
               <Sliders className="w-3.5 h-3.5" />
             </button>

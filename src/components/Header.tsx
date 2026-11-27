@@ -4,21 +4,18 @@ import React, { useState, useRef, useEffect } from "react";
 import { 
   Terminal, 
   Search, 
-  Wifi, 
-  WifiOff, 
   Sun, 
   Moon, 
-  User, 
   ChevronDown,
-  UserCheck,
-  Shield,
-  KeyRound,
-  LogIn,
   Users,
-  LogOut
+  LogOut,
+  Database,
+  ShieldCheck
 } from "lucide-react";
 import { TenantSettings, AppUser } from "@/types";
 import { NucleoIcon } from "./NucleoIcon";
+import { getDefaultViewForUser } from "@/lib/offlineStore";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 interface HeaderProps {
   tenant: TenantSettings;
@@ -34,6 +31,8 @@ interface HeaderProps {
   onOpenSettingsWizard: () => void;
   onLogout?: () => void;
   unreadGodModeTickets?: number;
+  isImpersonating?: boolean;
+  onReturnToOwner?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -50,11 +49,22 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSettingsWizard,
   onLogout,
   unreadGodModeTickets = 0,
+  isImpersonating = false,
+  onReturnToOwner,
 }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const isOwner = currentUser.role === "owner" || currentUser.role === "superadmin";
+  const isSuperAdmin = currentUser.role === "superadmin";
+  const isOwner = currentUser.role === "owner" || isSuperAdmin;
+  const supabaseReady = isSupabaseConfigured();
+
+  // Usuarios visibles para cambio rápido (SOLO para Dueño o SuperAdmin, jamás expuestos a empleados)
+  const switchableUsers = isSuperAdmin
+    ? users
+    : isOwner
+    ? users.filter((u) => u.role !== "superadmin" && (!u.tenantId || u.tenantId === tenant.id))
+    : [];
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -73,7 +83,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Left: Brand & Tenant Selector */}
         <div className="flex items-center gap-3">
           <div 
-            onClick={() => setActiveView("spatial")}
+            onClick={() => setActiveView(getDefaultViewForUser(currentUser, tenant))}
             className="flex items-center gap-2.5 cursor-pointer group"
           >
             <NucleoIcon size={28} showGlow={true} />
@@ -84,7 +94,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800" />
 
-          {/* Business / Tenant Pill */}
+          {/* Business / Tenant Pill (Solo el propietario puede abrir el asistente de configuración) */}
           <button 
             type="button"
             onClick={isOwner ? onOpenSettingsWizard : undefined}
@@ -110,7 +120,11 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <div className="flex items-center gap-2">
               <Search className="w-3.5 h-3.5 text-neutral-400" />
-              <span>Buscar producto, cliente o módulo...</span>
+              <span>
+                {isOwner
+                  ? "Buscar producto, cliente o módulo..."
+                  : "Buscar en tu panel autorizado..."}
+              </span>
             </div>
             <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-neutral-700 text-neutral-500 dark:text-neutral-300 text-[10px] font-mono border border-neutral-200 dark:border-neutral-600 shadow-2xs">
               ⌘K
@@ -118,17 +132,21 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
 
-        {/* Right: User Switcher, Online Pill, SuperAdmin, Dark Mode */}
+        {/* Right: Cloud Status Pill, Owner Tools, Dark Mode, Profile */}
         <div className="flex items-center gap-2">
           
-          {/* Status Pill */}
+          {/* Status Pill (Online + Supabase status) */}
           <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium ${
             isOnline 
               ? "bg-apple-green/10 text-apple-green dark:bg-apple-green/20" 
               : "bg-apple-orange/10 text-apple-orange dark:bg-apple-orange/20"
-          }`}>
-            <span className="w-1.5 h-1.5 rounded-full bg-apple-green" />
-            <span>{isOnline ? "En Línea" : "Offline"}</span>
+          }`} title={supabaseReady ? "Sincronización Multi-Tenant con Supabase Activa" : "Modo Local Offline-First Activo"}>
+            {supabaseReady ? (
+              <Database className="w-3 h-3 text-apple-green" />
+            ) : (
+              <span className="w-1.5 h-1.5 rounded-full bg-apple-green" />
+            )}
+            <span>{isOnline ? (supabaseReady ? "Supabase Cloud" : "En Línea") : "Offline"}</span>
           </div>
 
           {/* Si es Dueño: Botón directo a 'Gestión de Usuarios' */}
@@ -136,7 +154,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => setActiveView("users")}
-              className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 activeView === "users"
                   ? "bg-apple-blue text-white shadow-sm"
                   : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
@@ -148,8 +166,8 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* SuperAdmin Terminal (Solo para dueño o superadmin) */}
-          {(isOwner || currentUser.role === "superadmin") && (
+          {/* SuperAdmin Terminal (EXCLUSIVO para SuperAdmin // God Mode) */}
+          {isSuperAdmin && (
             <button
               type="button"
               onClick={() => setActiveView("terminal")}
@@ -174,17 +192,17 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={() => setDarkMode(!darkMode)}
-            className="w-8 h-8 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 flex items-center justify-center text-neutral-600 dark:text-neutral-300 transition-colors"
+            className="w-8 h-8 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 flex items-center justify-center text-neutral-600 dark:text-neutral-300 transition-colors cursor-pointer"
           >
             {darkMode ? <Sun className="w-4 h-4 text-apple-yellow" /> : <Moon className="w-4 h-4" />}
           </button>
 
-          {/* User Account / Role Switcher Menu */}
+          {/* User Account / Role Menu */}
           <div className="relative" ref={menuRef}>
             <button
               type="button"
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className={`flex items-center gap-2 pl-2 pr-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
+              className={`flex items-center gap-2 pl-2 pr-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
                 currentUser.role === "superadmin"
                   ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30"
                   : currentUser.role === "owner"
@@ -204,51 +222,62 @@ export const Header: React.FC<HeaderProps> = ({
             {/* User Dropdown */}
             {showUserMenu && (
               <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-[#1c1c1e] text-neutral-900 dark:text-neutral-100 rounded-2xl p-2 shadow-2xl border border-neutral-200 dark:border-neutral-800 z-50 animate-fadeIn space-y-1">
-                <div className="p-2 border-b border-neutral-100 dark:border-neutral-800">
-                  <span className="text-[10px] text-neutral-400 font-mono block uppercase">Sesión Actual</span>
+                <div className="p-2.5 border-b border-neutral-100 dark:border-neutral-800 space-y-0.5">
+                  <span className="text-[10px] text-neutral-400 font-mono block uppercase">Sesión Activa</span>
                   <div className="font-bold text-xs text-neutral-900 dark:text-white truncate">
                     {currentUser.fullName}
                   </div>
-                  <span className="text-[10px] text-apple-blue font-semibold">
+                  <span className="text-[10px] text-apple-blue font-semibold block">
                     {currentUser.roleLabel}
                   </span>
+                  {!isOwner && (
+                    <div className="pt-1 flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                      <ShieldCheck className="w-3 h-3" />
+                      <span>Panel de Empleado Blindado</span>
+                    </div>
+                  )}
                 </div>
 
-                <div className="px-2 py-1 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
-                  Cambiar de Usuario:
-                </div>
+                {/* Solo el propietario o superadmin puede previsualizar o cambiar entre cuentas de empleados sin cerrar sesión */}
+                {isOwner && switchableUsers.length > 0 && (
+                  <>
+                    <div className="px-2 py-1 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
+                      Simular Vista de Empleado:
+                    </div>
 
-                {users.map((u) => {
-                  const isCur = u.id === currentUser.id;
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => {
-                        onSwitchUser(u);
-                        setShowUserMenu(false);
-                      }}
-                      className={`w-full flex items-center justify-between p-2 rounded-xl text-left text-xs transition-colors ${
-                        isCur
-                          ? "bg-neutral-100 dark:bg-neutral-800 text-apple-blue font-bold"
-                          : "hover:bg-neutral-50 dark:hover:bg-neutral-800/60 text-neutral-700 dark:text-neutral-300"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${
-                          u.role === "superadmin" ? "bg-purple-500" : u.role === "owner" ? "bg-apple-green" : u.role === "cashier" ? "bg-apple-blue" : "bg-apple-purple"
-                        }`} />
-                        <div>
-                          <span className="block truncate max-w-[140px] leading-tight">{u.fullName}</span>
-                          <span className="text-[9px] text-neutral-400 font-mono">{u.roleLabel}</span>
-                        </div>
-                      </div>
-                      <span className="text-[10px] font-mono text-neutral-400">
-                        {u.password || u.pinCode}
-                      </span>
-                    </button>
-                  );
-                })}
+                    {switchableUsers.map((u) => {
+                      const isCur = u.id === currentUser.id;
+                      return (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => {
+                            onSwitchUser(u);
+                            setShowUserMenu(false);
+                          }}
+                          className={`w-full flex items-center justify-between p-2 rounded-xl text-left text-xs transition-colors cursor-pointer ${
+                            isCur
+                              ? "bg-neutral-100 dark:bg-neutral-800 text-apple-blue font-bold"
+                              : "hover:bg-neutral-50 dark:hover:bg-neutral-800/60 text-neutral-700 dark:text-neutral-300"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full ${
+                              u.role === "superadmin" ? "bg-purple-500" : u.role === "owner" ? "bg-apple-green" : u.role === "cashier" ? "bg-apple-blue" : "bg-apple-purple"
+                            }`} />
+                            <div>
+                              <span className="block truncate max-w-[160px] leading-tight">{u.fullName}</span>
+                              <span className="text-[9px] text-neutral-400 font-mono">{u.roleLabel}</span>
+                            </div>
+                          </div>
+                          {isCur && (
+                            <span className="text-[9px] font-mono text-apple-blue font-bold">Activo</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
 
                 <div className="pt-1 border-t border-neutral-100 dark:border-neutral-800 space-y-0.5">
                   {isOwner && (
@@ -258,10 +287,24 @@ export const Header: React.FC<HeaderProps> = ({
                         setActiveView("users");
                         setShowUserMenu(false);
                       }}
-                      className="w-full py-1.5 px-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left text-xs font-semibold text-apple-blue flex items-center gap-1.5"
+                      className="w-full py-1.5 px-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left text-xs font-semibold text-apple-blue flex items-center gap-1.5 cursor-pointer"
                     >
                       <Users className="w-3.5 h-3.5" />
-                      <span>Crear nuevo usuario...</span>
+                      <span>Administrar Usuarios & Roles...</span>
+                    </button>
+                  )}
+
+                  {isImpersonating && onReturnToOwner && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        onReturnToOwner();
+                      }}
+                      className="w-full py-1.5 px-2 rounded-xl hover:bg-apple-green/10 text-left text-xs font-semibold text-apple-green flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Salir de Simulación (Volver a Dueño)</span>
                     </button>
                   )}
 
@@ -272,10 +315,10 @@ export const Header: React.FC<HeaderProps> = ({
                         setShowUserMenu(false);
                         onLogout();
                       }}
-                      className="w-full py-1.5 px-2 rounded-xl hover:bg-red-500/10 text-left text-xs font-semibold text-red-600 dark:text-red-400 flex items-center gap-1.5 transition-colors"
+                      className="w-full py-1.5 px-2 rounded-xl hover:bg-red-500/10 text-left text-xs font-semibold text-red-600 dark:text-red-400 flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <LogOut className="w-3.5 h-3.5" />
-                      <span>Cerrar Sesión / Salir</span>
+                      <span>Cerrar Sesión / Cambiar Usuario</span>
                     </button>
                   )}
                 </div>
@@ -288,7 +331,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onLogout}
-              className="w-8 h-8 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 flex items-center justify-center text-neutral-500 dark:text-neutral-400 transition-colors"
+              className="w-8 h-8 rounded-full bg-neutral-100 dark:bg-neutral-800 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 flex items-center justify-center text-neutral-500 dark:text-neutral-400 transition-colors cursor-pointer"
               title="Cerrar Sesión y volver al portal de inicio"
             >
               <LogOut className="w-4 h-4" />

@@ -34,6 +34,8 @@ import {
 import { TenantSettings, ModuleKey, AppUser, BusinessVertical, SupportTicket, TicketStatus } from "@/types";
 import { AVAILABLE_MODULES, VERTICAL_PRESETS } from "@/lib/constants";
 import { calculateTenantBilling, getCentralAmericaNow, formatCentralAmericaDate } from "@/lib/centralAmericaBilling";
+import { pushAllLocalDataToSupabase } from "@/lib/offlineStore";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 interface SuperAdminTerminalProps {
   currentTenant: TenantSettings;
@@ -122,6 +124,7 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
         "  billing-status           - Check billing cycle & pro-rata calculations (Cut: 10, Due: 05)",
         "  set-price <id> <amount>  - Override monthly subscription rate in USD",
         "  reset-pass <user> <pass> - Reset password for any account",
+        "  sync-supabase            - Push all multi-tenant tables and invoices to Supabase Cloud",
         "  status                   - Check system metrics, memory & timezone",
         "  clear                    - Clear terminal console"
       );
@@ -171,11 +174,17 @@ export const SuperAdminTerminal: React.FC<SuperAdminTerminalProps> = ({
       } else {
         newHistory.push("ERROR: Syntax: reset-pass <username> <new_password>");
       }
+    } else if (cmd === "sync-supabase") {
+      newHistory.push("INITIATING FULL MULTI-TENANT SUPABASE CLOUD SYNC (15 TABLES)...");
+      pushAllLocalDataToSupabase(currentTenant.id).then((res) => {
+        setCommandHistory((prev) => [...prev, `[SUPABASE] ${res.message}`]);
+      });
     } else if (cmd === "status") {
       newHistory.push(
         "SYSTEM METRICS:",
         "  Kernel: Núcleo Cloud OS 3.5.0-LTS",
         "  Timezone: America/Managua (UTC-6)",
+        `  Supabase Cloud Engine: ${isSupabaseConfigured() ? "CONNECTED (Multi-Tenant Sync Active)" : "LOCAL OFFLINE-FIRST MODE"}`,
         "  Offline LocalStore: Synchronized (100% Operational)",
         `  Active Tenants: ${allTenants.length}`,
         `  Registered System Users: ${allUsers.length}`

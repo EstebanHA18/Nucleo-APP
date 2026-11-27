@@ -36,12 +36,19 @@ import {
   Bug,
   Wrench,
   CheckCircle2,
-  X
+  X,
+  Database
 } from "lucide-react";
 import { TenantSettings, ModuleKey, SupportTicket, TicketRequestType, TicketPriority, AppUser } from "@/types";
 import { AVAILABLE_MODULES } from "@/lib/constants";
 import { NucleoIcon } from "./NucleoIcon";
-import { saveStoredTenant } from "@/lib/offlineStore";
+import { saveStoredTenant, pushAllLocalDataToSupabase } from "@/lib/offlineStore";
+import {
+  getSupabaseCredentials,
+  saveCustomSupabaseCredentials,
+  testSupabaseConnection,
+  getLastSupabaseSyncTime
+} from "@/lib/supabase";
 import { 
   connectBluetoothPrinter, 
   disconnectBluetoothPrinter, 
@@ -112,6 +119,37 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
   // Estados de Negocio
   const [exchangeRate, setExchangeRate] = useState(tenant.exchangeRate || 36.62);
   const [taxPercentage, setTaxPercentage] = useState(tenant.taxPercentage || 15.0);
+
+  // Estados de Conexión Supabase Cloud Multi-Tenant
+  const initialSupa = getSupabaseCredentials();
+  const [supaUrl, setSupaUrl] = useState(initialSupa.url || "https://dpqwetqzqtzhccehogjy.supabase.co");
+  const [supaAnonKey, setSupaAnonKey] = useState(initialSupa.isConfigured ? initialSupa.anonKey : "");
+  const [isTestingSupa, setIsTestingSupa] = useState(false);
+  const [isSyncingSupa, setIsSyncingSupa] = useState(false);
+  const [supaFeedback, setSupaFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const [lastSyncIso, setLastSyncIso] = useState<string | null>(() => getLastSupabaseSyncTime());
+
+  const handleSaveAndTestSupabase = async () => {
+    saveCustomSupabaseCredentials(supaUrl, supaAnonKey);
+    setIsTestingSupa(true);
+    setSupaFeedback(null);
+    const res = await testSupabaseConnection();
+    setIsTestingSupa(false);
+    setSupaFeedback({ ok: res.ok, text: res.message });
+    setLastSyncIso(getLastSupabaseSyncTime());
+  };
+
+  const handleFullSyncToSupabase = async () => {
+    if (supaUrl.trim() && supaAnonKey.trim()) {
+      saveCustomSupabaseCredentials(supaUrl, supaAnonKey);
+    }
+    setIsSyncingSupa(true);
+    setSupaFeedback(null);
+    const res = await pushAllLocalDataToSupabase(tenant.id);
+    setIsSyncingSupa(false);
+    setSupaFeedback({ ok: res.success, text: res.message });
+    setLastSyncIso(getLastSupabaseSyncTime());
+  };
 
   // Carga de archivo de logotipo (Base64)
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1672,6 +1710,108 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                 <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>Guardar Parámetros</span>
               </button>
+            </div>
+          </div>
+
+          {/* Panel de Base de Datos Real Multi-Tenant en Supabase Cloud */}
+          <div className="p-6 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-neutral-200/80 dark:border-neutral-800 shadow-apple space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-neutral-200/80 dark:border-neutral-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
+                      Base de Datos Multi-Tenant en Supabase Cloud
+                    </h3>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                      getSupabaseCredentials().isConfigured
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                        : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                    }`}>
+                      {getSupabaseCredentials().isConfigured ? "● CONECTADO" : "○ MODO LOCAL"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Sincroniza automáticamente todos los módulos (POS, Facturas, Inventario, Lotes, Caja, Clientes, Salud, RRHH, Producción, Rutas y Ajustes) aislados por negocio (<code className="font-mono">{tenant.id}</code>).
+                  </p>
+                </div>
+              </div>
+
+              {lastSyncIso && (
+                <span className="text-[11px] font-mono text-neutral-400">
+                  Última sincr.: {new Date(lastSyncIso).toLocaleTimeString("es-NI")}
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div>
+                <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                  Supabase Project URL (<code className="font-mono">NEXT_PUBLIC_SUPABASE_URL</code>):
+                </label>
+                <input
+                  type="text"
+                  value={supaUrl}
+                  onChange={(e) => setSupaUrl(e.target.value)}
+                  placeholder="https://xyzcompany.supabase.co"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-apple-blue"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+                  Supabase Anon / Public Key (<code className="font-mono">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>):
+                </label>
+                <input
+                  type="password"
+                  value={supaAnonKey}
+                  onChange={(e) => setSupaAnonKey(e.target.value)}
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-apple-blue"
+                />
+              </div>
+            </div>
+
+            {supaFeedback && (
+              <div className={`p-3 rounded-2xl text-xs font-semibold flex items-center gap-2 border ${
+                supaFeedback.ok
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+              }`}>
+                {supaFeedback.ok ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                <span>{supaFeedback.text}</span>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              <span className="text-[11px] text-neutral-400">
+                Archivo SQL listo para pegar en el SQL Editor de Supabase:{" "}
+                <code className="font-mono text-apple-blue">supabase/migrations/20261107_nucleo_schema.sql</code>
+              </span>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveAndTestSupabase}
+                  disabled={isTestingSupa}
+                  className="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isTestingSupa ? "animate-spin" : ""}`} />
+                  <span>{isTestingSupa ? "Verificando..." : "Guardar y Probar Conexión"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleFullSyncToSupabase}
+                  disabled={isSyncingSupa}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Database className="w-3.5 h-3.5" />
+                  <span>{isSyncingSupa ? "Sincronizando 15 Tablas..." : "Sincronizar Todo a Supabase Ahora"}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

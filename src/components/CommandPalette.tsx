@@ -11,9 +11,13 @@ import {
   Sliders, 
   ArrowRight,
   Dog,
-  Stethoscope
+  Stethoscope,
+  UserCheck,
+  Layers,
+  MapPin
 } from "lucide-react";
-import { Product } from "@/types";
+import { Product, AppUser, TenantSettings } from "@/types";
+import { canUserAccessView } from "@/lib/offlineStore";
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -21,6 +25,8 @@ interface CommandPaletteProps {
   onNavigate: (view: string) => void;
   products: Product[];
   onOpenSettingsWizard: () => void;
+  currentUser?: AppUser | null;
+  tenant?: TenantSettings | null;
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({
@@ -29,6 +35,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onNavigate,
   products,
   onOpenSettingsWizard,
+  currentUser,
+  tenant,
 }) => {
   const [query, setQuery] = useState("");
 
@@ -48,29 +56,49 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   if (!isOpen) return null;
 
-  const actions = [
-    { id: "pos", name: "Abrir Terminal POS (Caja & Ventas)", icon: <Receipt className="w-4 h-4 text-apple-blue" />, category: "Navegación" },
+  const allActions = [
+    { id: "pos", name: "Abrir Terminal POS (Caja, Ventas & Facturas)", icon: <Receipt className="w-4 h-4 text-apple-blue" />, category: "Navegación" },
     { id: "inventory", name: "Gestionar Inventario & Kardex", icon: <Package className="w-4 h-4 text-apple-purple" />, category: "Navegación" },
     { id: "customers", name: "Directorio de Clientes", icon: <Users className="w-4 h-4 text-apple-green" />, category: "Navegación" },
     { id: "veterinary", name: "Veterinaria & Pacientes (Expediente Clínico y Vacunas)", icon: <Dog className="w-4 h-4 text-amber-500" />, category: "Salud" },
     { id: "clinical", name: "Clínica & Odontología (Historias Clínicas y Odontograma)", icon: <Stethoscope className="w-4 h-4 text-teal-500" />, category: "Salud" },
-    { id: "spatial", name: "Ver Red Espacial (Topología de Nodos)", icon: <Network className="w-4 h-4 text-apple-teal" />, category: "Navegación" },
-    { id: "terminal", name: "Abrir SuperAdmin Terminal (God Mode)", icon: <Terminal className="w-4 h-4 text-apple-orange" />, category: "Administración" },
+    { id: "hr", name: "Recursos Humanos, Asistencia & Nómina", icon: <UserCheck className="w-4 h-4 text-teal-600" />, category: "Operaciones" },
+    { id: "production", name: "Producción, Recetas (BOM) & Órdenes", icon: <Layers className="w-4 h-4 text-rose-500" />, category: "Operaciones" },
+    { id: "routes", name: "Rutas de Reparto GPS, Mapa & Conductores", icon: <MapPin className="w-4 h-4 text-indigo-500" />, category: "Logística" },
+    { id: "spatial", name: "Ver Red Espacial (Topología de Nodos)", icon: <Network className="w-4 h-4 text-apple-teal" />, category: "Dirección" },
+    { id: "settings", name: "Ajustes de Factura, Impresora Bluetooth y Supabase", icon: <Sliders className="w-4 h-4 text-apple-blue" />, category: "Configuración" },
+    { id: "terminal", name: "Abrir SuperAdmin Terminal (God Mode)", icon: <Terminal className="w-4 h-4 text-apple-orange" />, category: "SuperAdmin" },
     { id: "wizard", name: "Reconfigurar Negocio / Business Builder", icon: <Sliders className="w-4 h-4 text-apple-pink" />, category: "Configuración" },
   ];
 
-  const filteredActions = actions.filter((a) =>
+  // Filtrar estrictamente por los módulos a los que el usuario actual tiene acceso
+  const allowedActions = allActions.filter((a) =>
+    currentUser && tenant ? canUserAccessView(currentUser, tenant, a.id) : true
+  );
+
+  const filteredActions = allowedActions.filter((a) =>
     a.name.toLowerCase().includes(query.toLowerCase())
   );
 
-  const matchedProducts = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(query.toLowerCase()) ||
-      p.sku.toLowerCase().includes(query.toLowerCase()) ||
-      p.category.toLowerCase().includes(query.toLowerCase()) ||
-      (p.barcode && p.barcode.includes(query)) ||
-      (p.hasBatches && p.batches?.some(b => b.batchNumber.toLowerCase().includes(query.toLowerCase()) || (b.barcode && b.barcode.includes(query))))
-  ).slice(0, 4);
+  const canSeeProducts = !currentUser || !tenant || canUserAccessView(currentUser, tenant, "pos") || canUserAccessView(currentUser, tenant, "inventory");
+
+  const matchedProducts = canSeeProducts
+    ? products
+        .filter(
+          (p) =>
+            p.name.toLowerCase().includes(query.toLowerCase()) ||
+            p.sku.toLowerCase().includes(query.toLowerCase()) ||
+            p.category.toLowerCase().includes(query.toLowerCase()) ||
+            (p.barcode && p.barcode.includes(query)) ||
+            (p.hasBatches &&
+              p.batches?.some(
+                (b) =>
+                  b.batchNumber.toLowerCase().includes(query.toLowerCase()) ||
+                  (b.barcode && b.barcode.includes(query))
+              ))
+        )
+        .slice(0, 4)
+    : [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-black/40 backdrop-blur-md animate-fadeIn">
@@ -86,7 +114,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar acción, módulo o producto (ej. Varilla, POS, Clientes)..."
+            placeholder="Buscar en tus módulos autorizados o catálogo..."
             className="w-full bg-transparent text-sm focus:outline-none placeholder-neutral-400"
           />
           <kbd className="px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-[10px] font-mono text-neutral-500 border border-neutral-200 dark:border-neutral-700">
@@ -97,7 +125,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         {/* Results */}
         <div className="p-2 max-h-80 overflow-y-auto space-y-1">
           <div className="px-2.5 py-1 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
-            Acciones & Módulos
+            Paneles Autorizados ({filteredActions.length})
           </div>
           {filteredActions.map((act) => (
             <button
@@ -111,7 +139,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 }
                 onClose();
               }}
-              className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left text-xs transition-colors group"
+              className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left text-xs transition-colors group cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className="w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
@@ -135,7 +163,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 <div
                   key={p.id}
                   onClick={() => {
-                    onNavigate("pos");
+                    const targetView =
+                      currentUser && tenant && !canUserAccessView(currentUser, tenant, "pos") && canUserAccessView(currentUser, tenant, "inventory")
+                        ? "inventory"
+                        : "pos";
+                    onNavigate(targetView);
                     onClose();
                   }}
                   className="flex items-center justify-between p-2.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer text-xs transition-colors"
